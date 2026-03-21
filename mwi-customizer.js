@@ -41,7 +41,7 @@
     bgAlpha: 0.12, // background tint alpha
     // allow user override of quantity tiers via cfg.quantityTiers (null = disabled)
     quantityTiers: null,
-    // Color mode: 'Quantity'|'Category'|'Level'|'None' — controls which coloring strategy is applied
+    // Color mode: 'Quantity'|'Category'|'None' — controls which coloring strategy is applied
     colorMode: 'Quantity',
     // Category-to-color mapping used when colorMode === 'Category'. Keys are category names.
     categoryColorTiers: {
@@ -758,7 +758,7 @@
       const modeRow = document.createElement('div'); modeRow.className = 'mwi-settings-row';
       const modeLabel = document.createElement('label'); modeLabel.textContent = 'Color mode';
       const modeSelect = document.createElement('select');
-      ['Quantity','Category','Level','None'].forEach(opt => {
+      ['Quantity','Category','None'].forEach(opt => {
         const o = document.createElement('option'); o.value = opt; o.textContent = opt; if (cfg.colorMode === opt) o.selected = true; modeSelect.appendChild(o);
       });
       modeSelect.addEventListener('change', () => {
@@ -771,13 +771,88 @@
 
       // Inventory setting: glow spread
       const spreadRow = document.createElement('div'); spreadRow.className = 'mwi-settings-row';
-      const spreadLabel = document.createElement('label'); spreadLabel.textContent = 'Glow spread (px)';
+      const spreadLabel = document.createElement('label'); spreadLabel.textContent = 'Glow';
       const spreadInput = document.createElement('input'); spreadInput.type = 'number'; spreadInput.value = cfg.glowSpread || 6; spreadInput.min = 0;
       spreadInput.addEventListener('change', () => { cfg.glowSpread = Number(spreadInput.value) || cfg.glowSpread; window.MWI_InventoryHighlighter.setGlowSpread(cfg.glowSpread); saveSettings(); });
       spreadRow.appendChild(spreadLabel); spreadRow.appendChild(spreadInput);
       invSection.appendChild(spreadRow);
 
-      // Category colors are configured via `cfg.categoryColorTiers` (kept minimal UI to avoid clutter).
+      // Category colors editor (read-only list of configured categories)
+      const catSection = document.createElement('div'); catSection.className = 'mwi-settings-section';
+      const catTitle = document.createElement('h4'); catTitle.textContent = 'Category Colors';
+      catSection.appendChild(catTitle);
+
+      const catList = document.createElement('div');
+      catList.style.marginTop = '6px';
+
+      function renderCategoryEditor(container) {
+        container.innerHTML = '';
+        const keys = Object.keys(cfg.categoryColorTiers || {});
+        if (!keys.length) {
+          const empty = document.createElement('div'); empty.style.fontSize = '12px'; empty.style.color = '#9fb7d7'; empty.textContent = 'No categories configured.'; container.appendChild(empty); return;
+        }
+        for (const k of keys) {
+          try {
+            const row = document.createElement('div'); row.className = 'mwi-settings-row';
+            const lbl = document.createElement('div'); lbl.textContent = k; lbl.style.flex = '1'; lbl.style.marginRight = '8px';
+            const colorInput = document.createElement('input'); colorInput.type = 'color';
+            try { colorInput.value = (cfg.categoryColorTiers[k] && String(cfg.categoryColorTiers[k]).trim()) || '#ffffff'; } catch (e) { colorInput.value = '#ffffff'; }
+            colorInput.addEventListener('input', () => {
+              try { cfg.categoryColorTiers[k] = colorInput.value; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) { log('category color set error', e); }
+            });
+            row.appendChild(lbl); row.appendChild(colorInput);
+            container.appendChild(row);
+          } catch (e) {}
+        }
+      }
+
+      catSection.appendChild(catList);
+      invSection.appendChild(catSection);
+      // initial render
+      renderCategoryEditor(catList);
+
+      // Quantity tiers editor (editable colors for quantity thresholds)
+      const qtySection = document.createElement('div'); qtySection.className = 'mwi-settings-section';
+      const qtyTitle = document.createElement('h4'); qtyTitle.textContent = 'Quantity Colors';
+      qtySection.appendChild(qtyTitle);
+      const qtyList = document.createElement('div'); qtyList.style.marginTop = '6px';
+
+      function renderQuantityEditor(container) {
+        container.innerHTML = '';
+        const tiers = cfg.collectionQuantityTiers || [];
+        if (!tiers.length) {
+          const empty = document.createElement('div'); empty.style.fontSize = '12px'; empty.style.color = '#9fb7d7'; empty.textContent = 'No quantity tiers configured.'; container.appendChild(empty); return;
+        }
+        for (let i = 0; i < tiers.length; i++) {
+          try {
+            const t = tiers[i];
+            const row = document.createElement('div'); row.className = 'mwi-settings-row';
+            const lbl = document.createElement('div'); lbl.textContent = '≥ ' + (t.min || 0); lbl.style.flex = '1'; lbl.style.marginRight = '8px';
+            const colorInput = document.createElement('input'); colorInput.type = 'color';
+            try { colorInput.value = (t.color && String(t.color).trim()) || '#ffffff'; } catch (e) { colorInput.value = '#ffffff'; }
+            colorInput.addEventListener('input', () => {
+              try { cfg.collectionQuantityTiers[i].color = colorInput.value; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) { log('quantity color set error', e); }
+            });
+            row.appendChild(lbl); row.appendChild(colorInput);
+            container.appendChild(row);
+          } catch (e) {}
+        }
+      }
+
+      qtySection.appendChild(qtyList); invSection.appendChild(qtySection);
+      renderQuantityEditor(qtyList);
+
+      // show/hide editors based on selected mode
+      function updateModeVisibility() {
+        try {
+          const mode = cfg.colorMode || 'Quantity';
+          catSection.style.display = (mode === 'Category') ? '' : 'none';
+          qtySection.style.display = (mode === 'Quantity') ? '' : 'none';
+        } catch (e) {}
+      }
+      updateModeVisibility();
+      // ensure modeSelect will update visibility on change
+      try { modeSelect && modeSelect.addEventListener && modeSelect.addEventListener('change', updateModeVisibility); } catch (e) {}
 
       // Dev section
       const devSection = document.createElement('div'); devSection.className = 'mwi-settings-section';
