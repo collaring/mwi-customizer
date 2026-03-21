@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         MWI Customizer
-// @namespace    https://github.com/yourname
+// @namespace    https://github.com/collaring
 // @version      0.1
 // @description  Highlight inventory items using collection-log colors from the game's runtime data.
 // @match        https://www.milkywayidle.com/game*
@@ -16,7 +16,7 @@
 
   // Configuration: tweak selectors or matches if needed for the site you play on.
   const cfg = {
-    debug: true,
+    debug: false,
     // A list of DOM selectors that might represent inventory item elements.
     // Update these after inspecting the page if they don't match your game's DOM.
     inventorySelectors: [
@@ -27,30 +27,81 @@
       '.inventory-slot'
     ],
     // Fallback color when nothing is found (optional)
-    fallbackOutline: 'rgba(255,255,255,0.05)'
+    fallbackOutline: 'rgba(255,255,255,0.05)',
+
+    // exposed quick-tunable options (defaults; can be overridden at runtime)
+    outlineWidth: 2, // px
+    glowAlpha: 0.08, // alpha for outer glow
+    // smaller default spread so the outer cloud is less dominant
+    glowSpread: 6, // px distance of the colored ring from the icon
+    // blur amount for the outer glow (softens hard edge)
+    glowBlur: 6, // px blur radius for outer glow
+    innerBorderWidth: 2, // px width of the inner curved border
+    // reduce background tint so icons aren't cloudy
+    bgAlpha: 0.12, // background tint alpha
+    // allow user override of quantity tiers via cfg.quantityTiers (null = disabled)
+    quantityTiers: null,
+    // Color mode: 'Quantity'|'Category'|'Level'|'None' — controls which coloring strategy is applied
+    colorMode: 'Quantity',
+    // Category-to-color mapping used when colorMode === 'Category'. Keys are category names.
+    categoryColorTiers: {
+      "Currencies": "#f6c85f",
+      "Loots": "#e07a3e",
+      "Scrolls": "#33ccff",
+      "Labyrinth": "#cc66ff",
+      "Dungeon Keys": "#a85cff",
+      "Foods": "#ff7f50",
+      "Drinks": "#4fc3a1",
+      "Ability Books": "#ffb86b",
+      "Equipment": "#9fb7d7",
+      "Resources": "#7fb069"
+    },
+    // Collection-style quantity tiers (min inclusive). These attempt to match Collection colors.
+    // Edit these thresholds/colors to match your Collections UI precisely.
+    collectionQuantityTiers: [
+      { min: 1000000, color: '#32c3a4' },
+      { min: 100000, color: '#e3931b' },
+      { min: 10000, color: '#d0333d' },
+      { min: 1000, color: '#9368cf' },
+      { min: 100, color: '#1d8ce0' },
+      { min: 1, color: '#d0d0d0' }
+    ]
   };
-  // exposed quick-tunable options
-  cfg.outlineWidth = 2; // px
-  cfg.glowAlpha = 0.08; // alpha for outer glow
-  // smaller default spread so the outer cloud is less dominant
-  cfg.glowSpread = 6; // px distance of the colored ring from the icon
-  // blur amount for the outer glow (softens hard edge)
-  cfg.glowBlur = 6; // px blur radius for outer glow
-  cfg.innerBorderWidth = 2; // px width of the inner curved border
-  // reduce background tint so icons aren't cloudy
-  cfg.bgAlpha = 0.12; // background tint alpha
-  // allow user override of quantity tiers via cfg.quantityTiers
-  cfg.quantityTiers = cfg.quantityTiers || null;
-  // Collection-style quantity tiers (min inclusive). These attempt to match Collection colors.
-  // Edit these thresholds/colors to match your Collections UI precisely.
-  cfg.collectionQuantityTiers = cfg.collectionQuantityTiers || [
-    { min: 1000000, color: '#32c3a4' },
-    { min: 100000, color: '#e3931b' },
-    { min: 10000, color: '#d0333d' },
-    { min: 1000, color: '#9368cf' },
-    { min: 100, color: '#1d8ce0' },
-    { min: 1, color: '#d0d0d0' }
-  ];
+
+  // Keep an immutable copy of defaults for reset
+  const DEFAULT_CFG = JSON.parse(JSON.stringify(cfg));
+
+  // Cached category buttons (populated per highlight run to avoid repeated DOM queries)
+  let cachedCategoryButtons = [];
+
+  // Settings persistence
+  const STORAGE_KEY = 'mwiCustomizerSettings_v1';
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const obj = JSON.parse(raw);
+      for (const k of Object.keys(obj)) {
+        // only restore known cfg keys
+        if (k in cfg) cfg[k] = obj[k];
+      }
+    } catch (e) { log('loadSettings error', e); }
+  }
+
+  function saveSettings() {
+    try {
+      const keys = ['debug','outlineWidth','glowAlpha','glowSpread','glowBlur','innerBorderWidth','bgAlpha','collectionQuantityTiers','quantityTiers','colorMode','categoryColorTiers'];
+      const out = {};
+      for (const k of keys) if (cfg[k] !== undefined) out[k] = cfg[k];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(out));
+    } catch (e) { log('saveSettings error', e); }
+  }
+
+  function clearSettings() { try { localStorage.removeItem(STORAGE_KEY); } catch (e) { log('clearSettings error', e); } }
+
+  // load persisted settings (if any)
+  loadSettings();
 
   function log(...args) { if (cfg.debug) console.log('[MWI-HL]', ...args); }
 
@@ -125,32 +176,7 @@
   // NOTE: scanning Collections DOM for colors has been removed for performance reasons.
   // We will instead fallback to quantity-based coloring when collection colors are not available.
 
-  // Try to find player inventory in common globals
-  function discoverPlayerInventory() {
-    const candidates = ['playerData', 'player', 'character', 'gameState', 'appState', 'store', 'window.playerData', 'window.character', 'window.game'];
-    for (const n of candidates) {
-      const obj = (function getByPath(p) {
-        try { return p.split('.').reduce((s, k) => s && s[k], window); } catch (e) { return null; }
-      })(n.replace(/^window\./, ''));
-      if (obj) {
-        // try typical keys
-        for (const key of ['characterItems', 'inventory', 'items', 'character_items', 'characterItemsMap']) {
-          if (obj[key]) return obj[key];
-        }
-      }
-    }
-    return null;
-  }
-
-  // Very rough rarity->color fallback (you can customize)
-  function rarityToColor(r) {
-    const rr = String(r).toLowerCase();
-    if (rr.includes('legend') || rr.includes('orange')) return '#ff7f50';
-    if (rr.includes('epic') || rr.includes('purple')) return '#9b59b6';
-    if (rr.includes('rare') || rr.includes('blue')) return '#3498db';
-    if (rr.includes('uncommon') || rr.includes('green')) return '#2ecc71';
-    return null;
-  }
+  // (Removed unused helpers: discoverPlayerInventory, rarityToColor)
 
   // Build a best-effort key extractor for inventory elements
   function elementItemKey(el) {
@@ -422,6 +448,83 @@
     return null;
   }
 
+  // Best-effort category inference for an inventory element.
+  // Tries attributes, dataset keys, nearby section headers, and ancestor labels.
+  function inferCategory(el) {
+    if (!el) return null;
+    try {
+      // direct attributes
+      const attrKeys = ['data-category','data-section','data-group','data-type'];
+      for (const a of attrKeys) {
+        const v = el.getAttribute && el.getAttribute(a);
+        if (v) return String(v).trim();
+      }
+
+      // dataset
+      for (const k of Object.keys(el.dataset || {})) {
+        if (k.toLowerCase().includes('category') || k.toLowerCase().includes('section') || k.toLowerCase().includes('group') || k.toLowerCase().includes('type')) {
+          return String(el.dataset[k]).trim();
+        }
+      }
+
+      // check closest ancestor with a data-category or section-like class
+      let p = el.parentElement;
+      while (p) {
+        try {
+          for (const a of attrKeys) {
+            const v = p.getAttribute && p.getAttribute(a);
+            if (v) return String(v).trim();
+          }
+          const cls = (p.className || '').toString().toLowerCase();
+          if (cls && (cls.includes('category') || cls.includes('section') || cls.includes('group') || cls.includes('inventory'))) {
+            // try to find a header inside this ancestor
+            const hdr = p.querySelector && (p.querySelector('h1,h2,h3,h4,h5,h6,.section-title,.title'));
+            if (hdr && hdr.textContent) return hdr.textContent.trim();
+          }
+        } catch (e) {}
+        p = p.parentElement;
+      }
+
+      // Try to find the nearest category button from the cached list (fast).
+      try {
+        if (cachedCategoryButtons && cachedCategoryButtons.length) {
+          const elRect = el.getBoundingClientRect();
+          let best = null; let bestDist = Infinity;
+          for (const b of cachedCategoryButtons) {
+            try {
+              const br = b.rect;
+              if (br.bottom <= elRect.top + 4 || Math.abs(br.top - elRect.top) < 40) {
+                const dist = Math.abs(elRect.top - br.bottom);
+                if (dist < bestDist) { bestDist = dist; best = b; }
+              }
+            } catch (e) {}
+          }
+          if (!best) {
+            for (const b of cachedCategoryButtons) {
+              try { const dist = Math.abs(elRect.top - b.rect.top); if (dist < bestDist) { bestDist = dist; best = b; } } catch (e) {}
+            }
+          }
+          if (best) return best.text;
+        }
+      } catch (e) {}
+
+      // look for nearby previous heading siblings
+      let prev = el.previousElementSibling;
+      while (prev) {
+        try {
+          if (/H[1-6]/i.test(prev.tagName) && prev.textContent) return prev.textContent.trim();
+          if ((prev.className||'').toString().toLowerCase().includes('title') && prev.textContent) return prev.textContent.trim();
+        } catch (e) {}
+        prev = prev.previousElementSibling;
+      }
+
+      // fallback to element text if short
+      const txt = (el.textContent || '').trim();
+      if (txt && txt.length < 40) return txt.split('\n')[0].trim();
+    } catch (e) {}
+    return null;
+  }
+
   function highlightInventory(maps) {
     const hridMap = maps && maps.hridMap ? maps.hridMap : new Map();
     const nameMap = maps && maps.nameMap ? maps.nameMap : new Map();
@@ -437,84 +540,154 @@
       log('nameMap sample:', sample);
     }
 
-    // Collect likely icon/image/svg candidates (prefer exact icon wrappers so we hit every item)
+    // Evaluate which coloring strategy to use
+    if (cfg.colorMode === 'None') {
+      log('highlightInventory skipped — colorMode: None');
+      return;
+    }
+    const useQuantity = cfg.colorMode === 'Quantity';
+    const useCategory = cfg.colorMode === 'Category';
+
+    // When using Category mode, cache visible category buttons once per run to avoid
+    // repeated document.querySelectorAll calls inside inferCategory for each item.
+    if (useCategory) {
+      try {
+        const btns = Array.from(document.querySelectorAll('[class*="Inventory_categoryButton__"]'));
+        cachedCategoryButtons = btns.map(b => {
+          let rect = null;
+          try { rect = b.getBoundingClientRect(); } catch (e) { rect = null; }
+          return { el: b, text: (b.textContent||'').trim(), rect };
+        }).filter(x => x.text && x.rect);
+      } catch (e) { cachedCategoryButtons = []; }
+    } else {
+      cachedCategoryButtons = [];
+    }
+
+    // Collect likely item candidates. Keep set small and focused to avoid scanning the whole DOM.
     const els = new Set();
     // Restrict to inventory panels matching the game's Inventory wrapper to avoid site-wide effects
     const inventoryRoots = Array.from(document.querySelectorAll('.Inventory_inventory__17CH2'));
     if (inventoryRoots.length) {
       for (const root of inventoryRoots) {
-        root.querySelectorAll('[data-item-id], [data-id], [data-item], [data-itemid]').forEach(e => els.add(e));
-        root.querySelectorAll('.Collection_iconContainer__2cD7o, [class*="icon"], [class*="Icon"], [class*="Collection_"]').forEach(e => els.add(e));
-        root.querySelectorAll('svg, img').forEach(e => els.add(e));
-        for (const sel of cfg.inventorySelectors) root.querySelectorAll(sel).forEach(e => els.add(e));
+        // Prefer explicit item/selectors and data-* attributes only (avoid generic svg/img/icon scanning).
+        const selList = ['[data-item-id], [data-id], [data-item], [data-itemid]'].concat(cfg.inventorySelectors || []);
+        for (const sel of selList) {
+          try {
+            const nl = root.querySelectorAll(sel);
+            for (const n of nl) els.add(n);
+          } catch (e) {}
+        }
+        // also include small icon/container wrappers (filtered) so we can target visuals
+        try {
+          const icons = root.querySelectorAll('.Collection_iconContainer__2cD7o, [class*="icon"], [class*="Icon"], [class*="Collection_"]');
+          for (const n of icons) {
+            try { if (isSmallNode(n)) els.add(n); } catch (e) {}
+          }
+        } catch (e) {}
+        try {
+          const imgs = root.querySelectorAll('img, svg');
+          for (const im of imgs) {
+            try {
+              if (isSmallNode(im)) { els.add(im); continue; }
+              const p = im.closest && im.closest('*');
+              if (p && isSmallNode(p)) els.add(p);
+            } catch (e) {}
+          }
+        } catch (e) {}
       }
     } else {
-      // fallback: previous global behavior (only used when inventory root class not present)
-      document.querySelectorAll('[data-item-id], [data-id], [data-item], [data-itemid]').forEach(e => els.add(e));
-      document.querySelectorAll('.Collection_iconContainer__2cD7o, [class*="icon"], [class*="Icon"], [class*="Collection_"]')
-        .forEach(e => els.add(e));
-      document.querySelectorAll('svg, img').forEach(e => els.add(e));
-      for (const sel of cfg.inventorySelectors) document.querySelectorAll(sel).forEach(e => els.add(e));
-    }
-
-    let applied = 0;
-    els.forEach(el => {
-      let color = null;
-      // Priority: if there's an Item_count__1HVvv nearby, use its numeric value to determine color
+      // fallback: only target common inventory selectors and data-* attributes
+      const globalSel = ['[data-item-id], [data-id], [data-item], [data-itemid]'].concat(cfg.inventorySelectors || []);
+      for (const sel of globalSel) {
+        try {
+          const nl = document.querySelectorAll(sel);
+          for (const n of nl) els.add(n);
+        } catch (e) {}
+      }
       try {
-        const countEl = findCountElement(el);
-        if (countEl && countEl.textContent) {
-          const q = parseQuantity(countEl.textContent);
-          const qc = quantityToColor(q);
-          if (qc) {
-            color = qc;
-            if (cfg.debug) log('Found count', countEl.textContent.trim(), '->', q, 'color', qc);
-          }
+        const icons = document.querySelectorAll('.Collection_iconContainer__2cD7o, [class*="icon"], [class*="Icon"], [class*="Collection_"]');
+        for (const n of icons) { try { if (isSmallNode(n)) els.add(n); } catch (e) {} }
+      } catch (e) {}
+      try {
+        const imgs = document.querySelectorAll('img, svg');
+        for (const im of imgs) {
+          try { if (isSmallNode(im)) { els.add(im); continue; } const p = im.closest && im.closest('*'); if (p && isSmallNode(p)) els.add(p); } catch (e) {}
         }
       } catch (e) {}
+    }
 
-      // If no quantity-based color, fall back to hrid/name matching
-      if (!color) {
-        // 1) try attributes/dataset/img/svg based key
-        const key = elementItemKey(el);
-        let resolvedHrid = null;
-        if (key) {
-          color = hridMap.get(String(key)) || hridMap.get(String(parseInt(key) || '')) || nameMap.get(String(key).toLowerCase());
-          if (!color) {
-            const lk = String(key).toLowerCase();
-            if (nameToHrid.has(lk)) resolvedHrid = nameToHrid.get(lk);
+    // Cap number of elements processed to avoid long synchronous loops
+    const elArray = Array.from(els).slice(0, 1200);
+    if (cfg.debug) log('highlightInventory candidates:', elArray.length);
+    let applied = 0;
+    for (const el of elArray) {
+      let color = null;
+      // Category mode: try to infer a category and map to configured colors
+      if (useCategory) {
+        try {
+          const cat = inferCategory(el);
+          if (cat) {
+            const tiers = cfg.categoryColorTiers || {};
+            // try exact key, then lower-cased key
+            color = tiers[cat] || tiers[cat.toLowerCase()] || tiers[(cat.charAt(0).toUpperCase() + cat.slice(1))];
+            if (cfg.debug) log('Category lookup', cat, '->', color);
           }
-        }
-        // 2) try substring match against known item names
+        } catch (e) {}
+      }
+
+      // Quantity (or fallback) mode: existing quantity/name matching logic
+      if (!color && useQuantity) {
+        try {
+          const countEl = findCountElement(el);
+          if (countEl && countEl.textContent) {
+            const q = parseQuantity(countEl.textContent);
+            const qc = quantityToColor(q);
+            if (qc) {
+              color = qc;
+              if (cfg.debug) log('Found count', countEl.textContent.trim(), '->', q, 'color', qc);
+            }
+          }
+        } catch (e) {}
+
         if (!color) {
-          const txt = (el.textContent || '').toLowerCase();
-          if (txt) {
-            for (const n of nameKeys) {
-              if (txt.indexOf(n) !== -1) { color = nameMap.get(n); break; }
+          const key = elementItemKey(el);
+          let resolvedHrid = null;
+          if (key) {
+            color = hridMap.get(String(key)) || hridMap.get(String(parseInt(key) || '')) || nameMap.get(String(key).toLowerCase());
+            if (!color) {
+              const lk = String(key).toLowerCase();
+              if (nameToHrid.has(lk)) resolvedHrid = nameToHrid.get(lk);
             }
           }
-        }
-        if (!color && !resolvedHrid) {
-          const txt = (el.textContent || '').toLowerCase();
-          if (txt) {
-            for (const n of nameKeys) {
-              if (txt.indexOf(n) !== -1) { color = nameMap.get(n); resolvedHrid = nameToHrid.get(n); break; }
+          if (!color) {
+            const txt = (el.textContent || '').toLowerCase();
+            if (txt) {
+              for (const n of nameKeys) {
+                if (txt.indexOf(n) !== -1) { color = nameMap.get(n); break; }
+              }
             }
           }
-        }
-        if (!color && resolvedHrid && hridNameMap.has(resolvedHrid)) {
-          const nm = String(hridNameMap.get(resolvedHrid)).toLowerCase();
-          color = nameMap.get(nm) || null;
+          if (!color && !resolvedHrid) {
+            const txt = (el.textContent || '').toLowerCase();
+            if (txt) {
+              for (const n of nameKeys) {
+                if (txt.indexOf(n) !== -1) { color = nameMap.get(n); resolvedHrid = nameToHrid.get(n); break; }
+              }
+            }
+          }
+          if (!color && resolvedHrid && hridNameMap.has(resolvedHrid)) {
+            const nm = String(hridNameMap.get(resolvedHrid)).toLowerCase();
+            color = nameMap.get(nm) || null;
+          }
         }
       }
 
       if (color) {
-        // prefer the best icon wrapper target for styling
         let target = null;
         try { target = findHighlightTarget(el) || findAssociatedIcon(el); } catch (e) { target = null; }
         if (target) { highlightElement(target, color); applied++; }
+        }
       }
-    });
 
     // If nothing was highlighted, try a broader text-search fallback inside likely inventory containers
     if (!applied && nameKeys.length) {
@@ -546,6 +719,170 @@
     log('highlightInventory applied highlights:', applied);
   }
 
+    // --- Settings UI (button + modal) ---
+    function injectStyles() {
+      const css = `
+          #mwi-settings-btn { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:6px; background:#222; color:#fff; border:1px solid rgba(255,255,255,0.06); cursor:pointer; margin-left:8px; }
+          #mwi-settings-btn:hover { opacity:0.95; }
+          #mwi-settings-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:9999999; }
+          #mwi-settings-dialog { background:#0f1720; color:#e6eef8; padding:16px; border-radius:8px; width:520px; max-width:92%; box-shadow:0 8px 24px rgba(0,0,0,0.6); }
+          #mwi-settings-dialog h3 { margin:0 0 8px 0; font-size:16px; }
+          #mwi-settings-close { float:right; cursor:pointer; background:transparent; border:0; color:#fff; font-size:16px; }
+          .mwi-settings-notice { font-size:12px; color:#9fb7d7; margin:6px 0 8px 0; }
+          .mwi-settings-row { margin:8px 0; display:flex; align-items:center; justify-content:space-between; }
+          .mwi-settings-section { margin-top:12px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.04); }
+          .mwi-settings-section h4 { margin:0 0 8px 0; font-size:13px; color:#bcd3ea; }
+        `;
+      const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
+    }
+
+    function createSettingsModal() {
+      if (document.getElementById('mwi-settings-overlay')) return;
+      const overlay = document.createElement('div'); overlay.id = 'mwi-settings-overlay';
+      overlay.style.display = 'none';
+
+      const dialog = document.createElement('div'); dialog.id = 'mwi-settings-dialog';
+      const closeBtn = document.createElement('button'); closeBtn.id = 'mwi-settings-close'; closeBtn.textContent = '✕';
+      closeBtn.addEventListener('click', () => overlay.style.display = 'none');
+
+      const title = document.createElement('h3'); title.textContent = 'MWI Customizer Settings';
+      const notice = document.createElement('div'); notice.className = 'mwi-settings-notice'; notice.textContent = 'Refresh the page for changes to apply.';
+      const content = document.createElement('div'); content.style.marginTop = '8px';
+
+      // Inventory section
+      const invSection = document.createElement('div'); invSection.className = 'mwi-settings-section';
+      const invTitle = document.createElement('h4'); invTitle.textContent = 'Inventory';
+      invSection.appendChild(invTitle);
+
+      // Inventory setting: color mode dropdown
+      const modeRow = document.createElement('div'); modeRow.className = 'mwi-settings-row';
+      const modeLabel = document.createElement('label'); modeLabel.textContent = 'Color mode';
+      const modeSelect = document.createElement('select');
+      ['Quantity','Category','Level','None'].forEach(opt => {
+        const o = document.createElement('option'); o.value = opt; o.textContent = opt; if (cfg.colorMode === opt) o.selected = true; modeSelect.appendChild(o);
+      });
+      modeSelect.addEventListener('change', () => {
+        cfg.colorMode = modeSelect.value;
+        saveSettings();
+        try { if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) {}
+      });
+      modeRow.appendChild(modeLabel); modeRow.appendChild(modeSelect);
+      invSection.appendChild(modeRow);
+
+      // Inventory setting: glow spread
+      const spreadRow = document.createElement('div'); spreadRow.className = 'mwi-settings-row';
+      const spreadLabel = document.createElement('label'); spreadLabel.textContent = 'Glow spread (px)';
+      const spreadInput = document.createElement('input'); spreadInput.type = 'number'; spreadInput.value = cfg.glowSpread || 6; spreadInput.min = 0;
+      spreadInput.addEventListener('change', () => { cfg.glowSpread = Number(spreadInput.value) || cfg.glowSpread; window.MWI_InventoryHighlighter.setGlowSpread(cfg.glowSpread); saveSettings(); });
+      spreadRow.appendChild(spreadLabel); spreadRow.appendChild(spreadInput);
+      invSection.appendChild(spreadRow);
+
+      // Category colors are configured via `cfg.categoryColorTiers` (kept minimal UI to avoid clutter).
+
+      // Dev section
+      const devSection = document.createElement('div'); devSection.className = 'mwi-settings-section';
+      const devTitle = document.createElement('h4'); devTitle.textContent = 'Dev';
+      devSection.appendChild(devTitle);
+
+      // Dev setting: toggle debug
+      const debugRow = document.createElement('div'); debugRow.className = 'mwi-settings-row';
+      const dbgLabel = document.createElement('label'); dbgLabel.textContent = 'Debug logs';
+      const dbgInput = document.createElement('input'); dbgInput.type = 'checkbox'; dbgInput.checked = !!cfg.debug;
+      dbgInput.addEventListener('change', () => { cfg.debug = dbgInput.checked; saveSettings(); });
+      debugRow.appendChild(dbgLabel); debugRow.appendChild(dbgInput);
+      devSection.appendChild(debugRow);
+
+      content.appendChild(invSection); content.appendChild(devSection);
+
+      const footer = document.createElement('div'); footer.style.marginTop = '12px'; footer.style.textAlign = 'right';
+
+      // Reset button area (centered at very bottom)
+      const resetArea = document.createElement('div');
+      resetArea.style.marginTop = '12px';
+      resetArea.style.textAlign = 'center';
+      const resetBtn = document.createElement('button'); resetBtn.id = 'mwi-settings-reset'; resetBtn.textContent = 'Reset to defaults';
+      resetBtn.style.background = '#7f1d1d'; resetBtn.style.color = '#fff'; resetBtn.style.border = '0'; resetBtn.style.padding = '8px 12px'; resetBtn.style.borderRadius = '6px';
+      resetBtn.addEventListener('click', () => {
+        try {
+          const ok = window.confirm('Reset to defaults? This will clear your saved settings. Continue?');
+          if (!ok) return;
+          clearSettings();
+          for (const k of Object.keys(DEFAULT_CFG)) cfg[k] = JSON.parse(JSON.stringify(DEFAULT_CFG[k]));
+          saveSettings();
+          try { highlightInventory(discoverCollectionColors()); } catch (e) {}
+          overlay.style.display = 'none';
+        } catch (e) { log('reset error', e); }
+      });
+      resetArea.appendChild(resetBtn);
+
+      dialog.appendChild(closeBtn); dialog.appendChild(title); dialog.appendChild(notice); dialog.appendChild(content); dialog.appendChild(footer);
+      dialog.appendChild(resetArea);
+      overlay.appendChild(dialog); document.body.appendChild(overlay);
+    }
+
+    // close modal on Escape key when it's open
+    document.addEventListener('keydown', (ev) => {
+      try {
+        if (ev.key === 'Escape' || ev.key === 'Esc') {
+          const ov = document.getElementById('mwi-settings-overlay');
+          if (ov && ov.style && ov.style.display === 'flex') ov.style.display = 'none';
+        }
+      } catch (e) {}
+    });
+
+    function openSettings() { const ov = document.getElementById('mwi-settings-overlay'); if (!ov) createSettingsModal(); document.getElementById('mwi-settings-overlay').style.display = 'flex'; }
+
+    function findFilterContainer() {
+      const selectors = ['.item-filter', '.filter', '.ItemFilter', '[data-filter]', '.filters', '.controls'];
+      for (const s of selectors) {
+        const el = document.querySelector(s);
+        if (el) return el;
+      }
+      // fallback: try inventory container header or rightmost toolbar
+      const alt = document.querySelector('.Inventory_inventory__17CH2') || document.body;
+      return alt;
+    }
+
+    function insertSettingsButton() {
+      try {
+        injectStyles(); createSettingsModal();
+      // Prefer the item grid placement if available
+      const grid = document.querySelector('.Inventory_itemGrid__20YAH');
+      if (grid) {
+        // ensure parent is positioned so absolute placement works
+        const parent = grid.parentElement || grid;
+        try {
+          const cs = window.getComputedStyle(parent);
+          if (cs.position === 'static' || !cs.position) parent.style.position = 'relative';
+        } catch (e) {}
+        const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Settings'; btn.textContent = '⚙';
+        btn.setAttribute('aria-label', 'MWI Settings');
+        btn.style.position = 'absolute'; btn.style.right = '8px'; btn.style.top = '8px'; btn.style.zIndex = 9999999;
+        btn.addEventListener('click', openSettings);
+        // append to parent so it sits over the grid on the far right
+        parent.appendChild(btn);
+        return;
+      }
+
+      const container = findFilterContainer();
+      if (!container) return;
+        // prefer adding to a toolbar-like area; if the found container is large, attach to its parent
+        let target = container;
+        if (container.tagName && container.tagName.toLowerCase() === 'body') {
+          // place fixed near right edge if no filter container found
+          const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Settings'; btn.textContent = '⚙';
+          btn.style.position = 'fixed'; btn.style.right = '12px'; btn.style.bottom = '12px'; btn.style.zIndex = 9999999;
+          btn.addEventListener('click', openSettings);
+          document.body.appendChild(btn); return;
+        }
+        // try to append next to container
+        const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Settings'; btn.textContent = '⚙';
+        btn.addEventListener('click', openSettings);
+        // if container is inline/toolbar, append as child; otherwise append to its parent
+        try { container.appendChild(btn); } catch (e) { container.parentElement && container.parentElement.appendChild(btn); }
+      } catch (e) { log('insertSettingsButton error', e); }
+    }
+
   // Main init
   (async function init() {
     log('Starting highlighter');
@@ -560,19 +897,38 @@
     // initial highlight
     highlightInventory(colors);
 
-    // observe DOM changes to re-run lightweight highlighting only
-    const observer = new MutationObserver(() => highlightInventory(colors));
+    // observe DOM changes to re-run lightweight highlighting with debounce
+    let pendingHighlightTimer = null;
+    const observer = new MutationObserver(() => {
+      try {
+        if (pendingHighlightTimer) clearTimeout(pendingHighlightTimer);
+        pendingHighlightTimer = setTimeout(() => {
+          try { colors = discoverCollectionColors(); highlightInventory(colors); } catch (e) { log('debounced highlight error', e); }
+          pendingHighlightTimer = null;
+        }, 250);
+      } catch (e) {}
+    });
     observer.observe(document.body, { childList: true, subtree: true });
+
+    // Try to insert the settings button once the inventory grid exists (or fallback immediately)
+    try {
+      await waitFor(() => document.querySelector('.Inventory_itemGrid__20YAH'), 10000, 250);
+    } catch (e) {}
+    insertSettingsButton();
 
     // expose for debugging / manual refresh
     window.MWI_InventoryHighlighter = {
-      reScan: () => { colors = discoverCollectionColors(); highlightInventory(colors); return colors; },
+      reScan: () => { try { if (pendingHighlightTimer) { clearTimeout(pendingHighlightTimer); pendingHighlightTimer = null; } colors = discoverCollectionColors(); highlightInventory(colors); } catch (e) { log('reScan error', e); } return colors; },
       highlightInventory: () => highlightInventory(colors),
       // runtime setter for glow spread (px) and re-run
-      setGlowSpread: function(px) { try { cfg.glowSpread = Number(px) || cfg.glowSpread; highlightInventory(colors); return cfg.glowSpread; } catch (e) { return null; } },
-      setGlowBlur: function(px) { try { cfg.glowBlur = Number(px) || cfg.glowBlur; highlightInventory(colors); return cfg.glowBlur; } catch (e) { return null; } },
-      setGlowAlpha: function(a) { try { cfg.glowAlpha = Number(a); if (isNaN(cfg.glowAlpha)) cfg.glowAlpha = 0.08; highlightInventory(colors); return cfg.glowAlpha; } catch (e) { return null; } },
-      setBgAlpha: function(a) { try { cfg.bgAlpha = Number(a); if (isNaN(cfg.bgAlpha)) cfg.bgAlpha = 0.06; highlightInventory(colors); return cfg.bgAlpha; } catch (e) { return null; } },
+      setGlowSpread: function(px) { try { cfg.glowSpread = Number(px) || cfg.glowSpread; highlightInventory(colors); saveSettings(); return cfg.glowSpread; } catch (e) { return null; } },
+      setGlowBlur: function(px) { try { cfg.glowBlur = Number(px) || cfg.glowBlur; highlightInventory(colors); saveSettings(); return cfg.glowBlur; } catch (e) { return null; } },
+      setGlowAlpha: function(a) { try { cfg.glowAlpha = Number(a); if (isNaN(cfg.glowAlpha)) cfg.glowAlpha = 0.08; highlightInventory(colors); saveSettings(); return cfg.glowAlpha; } catch (e) { return null; } },
+      setBgAlpha: function(a) { try { cfg.bgAlpha = Number(a); if (isNaN(cfg.bgAlpha)) cfg.bgAlpha = 0.06; highlightInventory(colors); saveSettings(); return cfg.bgAlpha; } catch (e) { return null; } },
+      // persistence helpers
+      saveSettings: saveSettings,
+      loadSettings: loadSettings,
+      clearSettings: clearSettings,
       colors
     };
 
