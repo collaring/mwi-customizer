@@ -5,8 +5,6 @@
 // @description  Customize Milky Way Idle
 // @match        https://www.milkywayidle.com/game*
 // @match        https://*.milkywayidle.com/*
-// @match        https://*.c3d-gg.com/*
-// @match        https://play.c3d.gg/*
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
