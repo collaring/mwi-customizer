@@ -2,7 +2,7 @@
 // @name         MWI Customizer
 // @namespace    https://github.com/collaring
 // @version      0.1
-// @description  Highlight inventory items using collection-log colors from the game's runtime data.
+// @description  Customize Milky Way Idle
 // @match        https://www.milkywayidle.com/game*
 // @match        https://*.milkywayidle.com/*
 // @match        https://*.c3d-gg.com/*
@@ -37,6 +37,8 @@
     // blur amount for the outer glow (softens hard edge)
     glowBlur: 6, // px blur radius for outer glow
     innerBorderWidth: 2, // px width of the inner curved border
+    // Toggle to show the inner curved border (inset) around icons
+    showInnerBorder: true,
     // reduce background tint so icons aren't cloudy
     bgAlpha: 0.12, // background tint alpha
     // allow user override of quantity tiers via cfg.quantityTiers (null = disabled)
@@ -56,16 +58,90 @@
       "Equipment": "#9fb7d7",
       "Resources": "#7fb069"
     },
+    // per-category alpha (0-1)
+    categoryColorAlphas: {
+      "Currencies": 0.2,
+      "Loots": 0.2,
+      "Scrolls": 0.2,
+      "Labyrinth": 0.2,
+      "Dungeon Keys": 0.2,
+      "Foods": 0.2,
+      "Drinks": 0.2,
+      "Ability Books": 0.2,
+      "Equipment": 0.2,
+      "Resources": 0.2
+    },
     // Collection-style quantity tiers (min inclusive). These attempt to match Collection colors.
     // Edit these thresholds/colors to match your Collections UI precisely.
     collectionQuantityTiers: [
-      { min: 1000000, color: '#32c3a4' },
-      { min: 100000, color: '#e3931b' },
-      { min: 10000, color: '#d0333d' },
-      { min: 1000, color: '#9368cf' },
-      { min: 100, color: '#1d8ce0' },
-      { min: 1, color: '#d0d0d0' }
+      { min: 1000000, color: '#32c3a4', alpha: 0.2 },
+      { min: 100000, color: '#e3931b', alpha: 0.2 },
+      { min: 10000, color: '#d0333d', alpha: 0.2 },
+      { min: 1000, color: '#9368cf', alpha: 0.2 },
+      { min: 100, color: '#1d8ce0', alpha: 0.2 },
+      { min: 1, color: '#d0d0d0', alpha: 0.2 }
     ]
+    ,
+    // Sitewide colors (adjust site appearance). Empty = no override.
+    siteColors: {
+      header: '',
+      headerAlpha: 0.2,
+      panelBg: '',
+      panelBgAlpha: 0.2,
+      sidePanel: '',
+      sidePanelAlpha: 0.2,
+      subPanel: '',
+      subPanelAlpha: 0.2,
+      chatBg: '',
+      chatBgAlpha: 0.2,
+        buttonBg: '',
+        buttonBgAlpha: 1,
+      accent: '#ffffff',
+      accentAlpha: 1,
+      text: ''
+    }
+    ,
+    // Theme presets: each theme can set siteColors and optionally category/quantity palettes
+    selectedTheme: '',
+    themes: {
+      "Default": {},
+      "Dark": {
+        siteColors: {
+          sidePanel: '#000000', sidePanelAlpha: 1,
+          subPanel: '#000000', subPanelAlpha: 1,
+          panelBg: '#000000', panelBgAlpha: 1,
+          chatBg: '#000000', chatBgAlpha: 1,
+          buttonBg: '#000000', buttonBgAlpha: 1,
+          header: '#000000', headerAlpha: 1,
+          accent: '#ffffff', accentAlpha: 1,
+          text: '#ffffff'
+        }
+      },
+      "Amber": {
+        siteColors: {
+          sidePanel: '#2b1a0b', sidePanelAlpha: 1,
+          subPanel: '#3a2310', subPanelAlpha: 0.95,
+          panelBg: '#3a2310', panelBgAlpha: 0.95,
+          chatBg: '#372210', chatBgAlpha: 0.95,
+          buttonBg: '#6b3a12', buttonBgAlpha: 1,
+          header: '#3a2310', headerAlpha: 0.85,
+          accent: '#ffebc2', accentAlpha: 1,
+          text: '#fff6e6'
+        }
+      },
+      "Pink": {
+        siteColors: {
+          sidePanel: '#ff8fb8', sidePanelAlpha: 0.95,
+          subPanel: '#ffd0ea', subPanelAlpha: 0.9,
+          panelBg: '#ff5aa6', panelBgAlpha: 0.3,
+          chatBg: '#ff4d99', chatBgAlpha: 0.3,
+          buttonBg: '#ff2e8b', buttonBgAlpha: 1,
+          header: '#ff8fb8', headerAlpha: 0.95,
+          accent: '#ffffff', accentAlpha: 1,
+          text: '#270712'
+        }
+      }
+    }
   };
 
   // Keep an immutable copy of defaults for reset
@@ -91,7 +167,7 @@
 
   function saveSettings() {
     try {
-      const keys = ['debug','outlineWidth','glowAlpha','glowSpread','glowBlur','innerBorderWidth','bgAlpha','collectionQuantityTiers','quantityTiers','colorMode','categoryColorTiers'];
+      const keys = ['debug','outlineWidth','glowAlpha','glowSpread','glowBlur','innerBorderWidth','showInnerBorder','bgAlpha','collectionQuantityTiers','quantityTiers','colorMode','categoryColorTiers','categoryColorAlphas','siteColors','selectedTheme'];
       const out = {};
       for (const k of keys) if (cfg[k] !== undefined) out[k] = cfg[k];
       localStorage.setItem(STORAGE_KEY, JSON.stringify(out));
@@ -100,8 +176,87 @@
 
   function clearSettings() { try { localStorage.removeItem(STORAGE_KEY); } catch (e) { log('clearSettings error', e); } }
 
+  // Apply stored sitewide colors to the page
+  function applySiteColors() {
+    try {
+      const sc = cfg.siteColors || {};
+      const root = document.documentElement;
+      if (sc.header) {
+        const headVal = (sc.headerAlpha !== undefined && sc.headerAlpha < 1) ? colorToRGBA(sc.header, sc.headerAlpha) : sc.header;
+        root.style.setProperty('--mwi-header-bg', headVal);
+      } else root.style.removeProperty('--mwi-header-bg');
+      // panel bg variable still available but we also explicitly override default-colored panels
+      // support alpha for panel and accent by converting to rgba when alpha < 1
+      if (sc.panelBg) {
+        const panelVal = (sc.panelBgAlpha !== undefined && sc.panelBgAlpha < 1) ? colorToRGBA(sc.panelBg, sc.panelBgAlpha) : sc.panelBg;
+        root.style.setProperty('--mwi-panel-bg', panelVal);
+      } else root.style.removeProperty('--mwi-panel-bg');
+      if (sc.sidePanel) {
+        const sideVal = (sc.sidePanelAlpha !== undefined && sc.sidePanelAlpha < 1) ? colorToRGBA(sc.sidePanel, sc.sidePanelAlpha) : sc.sidePanel;
+        root.style.setProperty('--mwi-side-panel-bg', sideVal);
+      } else root.style.removeProperty('--mwi-side-panel-bg');
+      if (sc.subPanel) {
+        const subVal = (sc.subPanelAlpha !== undefined && sc.subPanelAlpha < 1) ? colorToRGBA(sc.subPanel, sc.subPanelAlpha) : sc.subPanel;
+        root.style.setProperty('--mwi-subpanel-bg', subVal);
+      } else root.style.removeProperty('--mwi-subpanel-bg');
+      if (sc.chatBg) {
+        const chatVal = (sc.chatBgAlpha !== undefined && sc.chatBgAlpha < 1) ? colorToRGBA(sc.chatBg, sc.chatBgAlpha) : sc.chatBg;
+        root.style.setProperty('--mwi-chat-bg', chatVal);
+      } else root.style.removeProperty('--mwi-chat-bg');
+      if (sc.buttonBg) {
+        const btnVal = (sc.buttonBgAlpha !== undefined && sc.buttonBgAlpha < 1) ? colorToRGBA(sc.buttonBg, sc.buttonBgAlpha) : sc.buttonBg;
+        root.style.setProperty('--mwi-button-bg', btnVal);
+      } else root.style.removeProperty('--mwi-button-bg');
+      if (sc.accent) {
+        const accVal = (sc.accentAlpha !== undefined && sc.accentAlpha < 1) ? colorToRGBA(sc.accent, sc.accentAlpha) : sc.accent;
+        root.style.setProperty('--mwi-accent', accVal);
+      } else root.style.removeProperty('--mwi-accent');
+      // text color falls back to accent when text is not explicitly set
+      if (sc.text) root.style.setProperty('--mwi-text', sc.text);
+      else if (sc.accent) root.style.setProperty('--mwi-text', sc.accent);
+      else root.style.removeProperty('--mwi-text');
+      // Use root-level CSS variables only; avoid per-element inline overrides so
+      // dynamically-recreated elements inherit colors consistently. We still set
+      // the variables above (`--mwi-panel-bg`, `--mwi-side-panel-bg`,
+      // `--mwi-chat-bg`, `--mwi-button-bg`) and the injected stylesheet will
+      // apply those values across the site.
+    } catch (e) { log('applySiteColors error', e); }
+  }
+
+  // Apply a named theme preset (if present in cfg.themes)
+  function applyTheme(name) {
+    try {
+      if (!name) return;
+      // If selecting the Default theme, restore DEFAULT_CFG values
+      if (name === 'Default') {
+        try {
+          for (const k of Object.keys(DEFAULT_CFG)) {
+            // deep copy each default key
+            try { cfg[k] = JSON.parse(JSON.stringify(DEFAULT_CFG[k])); } catch (e) { cfg[k] = DEFAULT_CFG[k]; }
+          }
+          // mark selectedTheme so UI reflects choice
+          cfg.selectedTheme = 'Default';
+          applySiteColors(); saveSettings();
+          try { if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) {}
+          return;
+        } catch (e) { log('applyTheme default error', e); }
+      }
+      if (!cfg.themes || !cfg.themes[name]) return;
+      const t = cfg.themes[name];
+      // shallow copy siteColors and optional palettes
+      cfg.siteColors = JSON.parse(JSON.stringify(t.siteColors || {}));
+      if (t.categoryColorTiers) cfg.categoryColorTiers = JSON.parse(JSON.stringify(t.categoryColorTiers));
+      if (t.collectionQuantityTiers) cfg.collectionQuantityTiers = JSON.parse(JSON.stringify(t.collectionQuantityTiers));
+      cfg.selectedTheme = name;
+      applySiteColors(); saveSettings();
+      try { if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) {}
+    } catch (e) { log('applyTheme error', e); }
+  }
+
   // load persisted settings (if any)
   loadSettings();
+  // immediately apply persisted site colors
+  try { applySiteColors(); } catch (e) {}
 
   function log(...args) { if (cfg.debug) console.log('[MWI-HL]', ...args); }
 
@@ -232,7 +387,7 @@
     return null;
   }
 
-  function highlightElement(el, color) {
+  function highlightElement(el, color, itemAlpha) {
     if (!el || !color) return;
     // stronger visual: outline (higher specificity) plus inset box-shadow
     try {
@@ -241,7 +396,7 @@
       // use setProperty with important to override game styles
       // thinner border like collection log, with a soft outer glow
       const outlineWidth = (cfg.outlineWidth !== undefined) ? cfg.outlineWidth : 2;
-      const glowAlpha = (cfg.glowAlpha !== undefined) ? cfg.glowAlpha : 0.08;
+      const glowAlpha = (itemAlpha !== undefined && !isNaN(Number(itemAlpha))) ? Number(itemAlpha) : ((cfg.glowAlpha !== undefined) ? cfg.glowAlpha : 0.08);
       // inner curved border (inset) + outer glow; and subtle background tint
       const innerW = (cfg.innerBorderWidth !== undefined) ? cfg.innerBorderWidth : outlineWidth;
       const bg = colorToRGBA(color, (cfg.bgAlpha !== undefined) ? cfg.bgAlpha : 0.12);
@@ -250,7 +405,8 @@
       const spread = (cfg.glowSpread !== undefined) ? cfg.glowSpread : Math.max(6, outlineWidth*2);
       const blur = (cfg.glowBlur !== undefined) ? cfg.glowBlur : Math.max(4, Math.floor(spread/2));
       // compose inset inner border and a soft outer halo (blur + spread)
-      const boxShadow = `inset 0 0 0 ${innerW}px ${color}, 0 0 ${blur}px ${spread}px ${glow}`;
+      const innerPart = (cfg.showInnerBorder === false) ? '' : `inset 0 0 0 ${innerW}px ${color}, `;
+      const boxShadow = `${innerPart}0 0 ${blur}px ${spread}px ${glow}`;
       el.style.setProperty('box-shadow', boxShadow, 'important');
       if (!el.style.borderRadius) el.style.borderRadius = '8px';
     } catch (e) {
@@ -288,7 +444,9 @@
     // Prefer collection-style tiers if provided, then cfg.quantityTiers, then defaults
     const tiers = cfg.collectionQuantityTiers || cfg.quantityTiers || defaultQuantityTiers;
     for (const t of tiers) {
-      if (q >= t.min) return t.color;
+      if (q >= t.min) {
+        return { color: t.color, alpha: (t.alpha !== undefined ? t.alpha : 1) };
+      }
     }
     return null;
   }
@@ -621,7 +779,7 @@
     if (cfg.debug) log('highlightInventory candidates:', elArray.length);
     let applied = 0;
     for (const el of elArray) {
-      let color = null;
+      let colorInfo = null; // { color: '#rrggbb' , alpha: 0-1 }
       // Category mode: try to infer a category and map to configured colors
       if (useCategory) {
         try {
@@ -629,63 +787,66 @@
           if (cat) {
             const tiers = cfg.categoryColorTiers || {};
             // try exact key, then lower-cased key
-            color = tiers[cat] || tiers[cat.toLowerCase()] || tiers[(cat.charAt(0).toUpperCase() + cat.slice(1))];
-            if (cfg.debug) log('Category lookup', cat, '->', color);
+            const c = tiers[cat] || tiers[cat.toLowerCase()] || tiers[(cat.charAt(0).toUpperCase() + cat.slice(1))];
+            const a = (cfg.categoryColorAlphas && cfg.categoryColorAlphas[cat] !== undefined) ? cfg.categoryColorAlphas[cat] : 1;
+            if (c) colorInfo = { color: c, alpha: a };
+            if (cfg.debug) log('Category lookup', cat, '->', colorInfo);
           }
         } catch (e) {}
       }
 
       // Quantity (or fallback) mode: existing quantity/name matching logic
-      if (!color && useQuantity) {
+      if (!colorInfo && useQuantity) {
         try {
           const countEl = findCountElement(el);
           if (countEl && countEl.textContent) {
             const q = parseQuantity(countEl.textContent);
             const qc = quantityToColor(q);
             if (qc) {
-              color = qc;
-              if (cfg.debug) log('Found count', countEl.textContent.trim(), '->', q, 'color', qc);
+              colorInfo = { color: qc.color, alpha: (qc.alpha !== undefined ? qc.alpha : 1) };
+              if (cfg.debug) log('Found count', countEl.textContent.trim(), '->', q, 'colorInfo', colorInfo);
             }
           }
         } catch (e) {}
 
-        if (!color) {
+        if (!colorInfo) {
           const key = elementItemKey(el);
           let resolvedHrid = null;
           if (key) {
-            color = hridMap.get(String(key)) || hridMap.get(String(parseInt(key) || '')) || nameMap.get(String(key).toLowerCase());
-            if (!color) {
+            const tmp = hridMap.get(String(key)) || hridMap.get(String(parseInt(key) || '')) || nameMap.get(String(key).toLowerCase());
+            if (tmp) colorInfo = { color: tmp, alpha: 1 };
+            if (!colorInfo) {
               const lk = String(key).toLowerCase();
               if (nameToHrid.has(lk)) resolvedHrid = nameToHrid.get(lk);
             }
           }
-          if (!color) {
+          if (!colorInfo) {
             const txt = (el.textContent || '').toLowerCase();
             if (txt) {
               for (const n of nameKeys) {
-                if (txt.indexOf(n) !== -1) { color = nameMap.get(n); break; }
+                if (txt.indexOf(n) !== -1) { const tmp = nameMap.get(n); if (tmp) colorInfo = { color: tmp, alpha: 1 }; break; }
               }
             }
           }
-          if (!color && !resolvedHrid) {
+          if (!colorInfo && !resolvedHrid) {
             const txt = (el.textContent || '').toLowerCase();
             if (txt) {
               for (const n of nameKeys) {
-                if (txt.indexOf(n) !== -1) { color = nameMap.get(n); resolvedHrid = nameToHrid.get(n); break; }
+                if (txt.indexOf(n) !== -1) { const tmp = nameMap.get(n); if (tmp) colorInfo = { color: tmp, alpha: 1 }; resolvedHrid = nameToHrid.get(n); break; }
               }
             }
           }
-          if (!color && resolvedHrid && hridNameMap.has(resolvedHrid)) {
+          if (!colorInfo && resolvedHrid && hridNameMap.has(resolvedHrid)) {
             const nm = String(hridNameMap.get(resolvedHrid)).toLowerCase();
-            color = nameMap.get(nm) || null;
+            const tmp = nameMap.get(nm) || null;
+            if (tmp) colorInfo = { color: tmp, alpha: 1 };
           }
         }
       }
-
-      if (color) {
+      if (colorInfo) {
         let target = null;
         try { target = findHighlightTarget(el) || findAssociatedIcon(el); } catch (e) { target = null; }
-        if (target) { highlightElement(target, color); applied++; }
+        if (target) { highlightElement(target, colorInfo.color, colorInfo.alpha); applied++; }
         }
       }
 
@@ -708,7 +869,7 @@
             for (const n of nameKeys) {
               if (txt.indexOf(n) !== -1) {
                 const color = nameMap.get(n);
-                if (color) { const target = findHighlightTarget(el) || el; highlightElement(target, color); applied++; }
+                if (color) { const target = findHighlightTarget(el) || el; highlightElement(target, color, 1); applied++; }
                 break;
               }
             }
@@ -722,7 +883,7 @@
     // --- Settings UI (button + modal) ---
     function injectStyles() {
       const css = `
-          #mwi-settings-btn { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:6px; background:#222; color:#fff; border:1px solid rgba(255,255,255,0.06); cursor:pointer; margin-left:8px; }
+          #mwi-settings-btn { display:inline-flex; align-items:center; justify-content:center; min-width:36px; height:36px; padding:6px 10px; border-radius:6px; background:#222; color:#fff; border:1px solid rgba(255,255,255,0.06); cursor:pointer; margin-left:8px; }
           #mwi-settings-btn:hover { opacity:0.95; }
           #mwi-settings-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:9999999; }
           #mwi-settings-dialog { background:#0f1720; color:#e6eef8; padding:16px; border-radius:8px; width:520px; max-width:92%; box-shadow:0 8px 24px rgba(0,0,0,0.6); }
@@ -732,6 +893,16 @@
           .mwi-settings-row { margin:8px 0; display:flex; align-items:center; justify-content:space-between; }
           .mwi-settings-section { margin-top:12px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.04); }
           .mwi-settings-section h4 { margin:0 0 8px 0; font-size:13px; color:#bcd3ea; }
+          #mwi-settings-dialog h4 { text-decoration: underline; }
+          /* sitewide customizable colors (set via JS variables) */
+              body { color: var(--mwi-text, inherit) !important; }
+              .GamePage_headerPanel__1T_cA { background-color: var(--mwi-header-bg, unset) !important; }
+          .panel, .panel-content, .Inventory_inventory__17CH2 { background-color: var(--mwi-panel-bg, unset) !important; }
+          .GamePage_navPanel__3wbAU { background-color: var(--mwi-side-panel-bg, unset) !important; }
+          .MainPanel_subPanelContainer__1i-H9 { background-color: var(--mwi-subpanel-bg, unset) !important; }
+          .Chat_chat__3DQkj { background-color: var(--mwi-chat-bg, unset) !important; }
+          .MuiButtonBase-root[class*="MuiButton"], .MuiButton-root, button[class*="MuiButton"], .MuiTab-root.MuiTab-textColorPrimary { background-color: var(--mwi-button-bg, unset) !important; }
+          a, button { color: var(--mwi-accent, inherit) !important; }
         `;
       const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
     }
@@ -740,6 +911,8 @@
       if (document.getElementById('mwi-settings-overlay')) return;
       const overlay = document.createElement('div'); overlay.id = 'mwi-settings-overlay';
       overlay.style.display = 'none';
+      // close modal when clicking outside the dialog
+      overlay.addEventListener('click', (ev) => { try { if (ev.target === overlay) overlay.style.display = 'none'; } catch (e) {} });
 
       const dialog = document.createElement('div'); dialog.id = 'mwi-settings-dialog';
       const closeBtn = document.createElement('button'); closeBtn.id = 'mwi-settings-close'; closeBtn.textContent = '✕';
@@ -748,6 +921,89 @@
       const title = document.createElement('h3'); title.textContent = 'MWI Customizer Settings';
       const notice = document.createElement('div'); notice.className = 'mwi-settings-notice'; notice.textContent = 'Refresh the page for changes to apply.';
       const content = document.createElement('div'); content.style.marginTop = '8px';
+
+      // Themes section (preset combos of Colors)
+      const themesSection = document.createElement('div'); themesSection.className = 'mwi-settings-section';
+      const themesTitle = document.createElement('h4'); themesTitle.textContent = 'Themes';
+      themesSection.appendChild(themesTitle);
+      const themesRow = document.createElement('div'); themesRow.className = 'mwi-settings-row';
+      const themesLabel = document.createElement('label'); themesLabel.textContent = 'Preset';
+      const themesSelect = document.createElement('select');
+      // add an explicit 'Custom' option
+      const customOpt = document.createElement('option'); customOpt.value = '__custom__'; customOpt.textContent = 'Custom'; themesSelect.appendChild(customOpt);
+      try {
+        if (cfg.themes) {
+          for (const name of Object.keys(cfg.themes)) {
+            const o = document.createElement('option'); o.value = name; o.textContent = name; if (cfg.selectedTheme === name) o.selected = true; themesSelect.appendChild(o);
+          }
+        }
+      } catch (e) {}
+      themesSelect.addEventListener('change', () => {
+        try {
+          if (themesSelect.value === '__custom__') { cfg.selectedTheme = ''; saveSettings(); }
+          else { applyTheme(themesSelect.value); }
+          // rerender color/category/quantity editors to reflect current values
+          try { renderColorsEditor(colorsList); renderCategoryEditor(catList); renderQuantityEditor(qtyList); } catch (e) {}
+        } catch (e) { log('theme select error', e); }
+      });
+      themesRow.appendChild(themesLabel); themesRow.appendChild(themesSelect);
+      themesSection.appendChild(themesRow);
+
+      // Colors section (sitewide)
+      const colorsSection = document.createElement('div'); colorsSection.className = 'mwi-settings-section';
+      const colorsTitle = document.createElement('h4'); colorsTitle.textContent = 'Colors';
+      colorsSection.appendChild(colorsTitle);
+
+      const colorsList = document.createElement('div'); colorsList.style.marginTop = '6px';
+
+      function renderColorsEditor(container) {
+        container.innerHTML = '';
+        const sc = cfg.siteColors || {};
+          const fields = [
+            { key: 'header', label: 'Header' , hasAlpha: true, alphaKey: 'headerAlpha', defaultAlpha: 0.2},
+            { key: 'sidePanel', label: 'Left Side Panel' , hasAlpha: true, alphaKey: 'sidePanelAlpha', defaultAlpha: 0.2},
+            { key: 'subPanel', label: 'Main Panel' , hasAlpha: true, alphaKey: 'subPanelAlpha', defaultAlpha: 0.2},
+            { key: 'panelBg', label: 'Inventory' , hasAlpha: true, alphaKey: 'panelBgAlpha', defaultAlpha: 0.2},
+            { key: 'chatBg', label: 'Chat Window' , hasAlpha: true, alphaKey: 'chatBgAlpha', defaultAlpha: 0.2},
+            { key: 'buttonBg', label: 'Buttons' , hasAlpha: true, alphaKey: 'buttonBgAlpha', defaultAlpha: 1},
+            { key: 'accent', label: 'Buttons Text Color' , hasAlpha: true, alphaKey: 'accentAlpha', defaultAlpha: 1}
+          ];
+        for (const f of fields) {
+          try {
+            const row = document.createElement('div'); row.className = 'mwi-settings-row';
+            const lbl = document.createElement('div'); lbl.textContent = f.label; lbl.style.flex = '1'; lbl.style.marginRight = '8px';
+            const colorInput = document.createElement('input'); colorInput.type = 'color';
+            try { colorInput.value = (sc[f.key] && String(sc[f.key]).trim()) || (f.key === 'accent' ? '#ffffff' : '#ffffff'); } catch (e) { colorInput.value = '#ffffff'; }
+            colorInput.addEventListener('input', () => {
+              try {
+                cfg.siteColors = cfg.siteColors || {};
+                cfg.siteColors[f.key] = colorInput.value;
+                if (f.hasAlpha && f.alphaKey && cfg.siteColors[f.alphaKey] === undefined) cfg.siteColors[f.alphaKey] = (f.defaultAlpha !== undefined ? f.defaultAlpha : 1);
+                if (f.key === 'accent') cfg.siteColors.text = colorInput.value;
+                applySiteColors(); saveSettings();
+              } catch (e) { log('site color set error', e); }
+            });
+            row.appendChild(lbl); row.appendChild(colorInput);
+            // add alpha slider when requested
+            if (f.hasAlpha) {
+              const alpha = document.createElement('input'); alpha.type = 'range'; alpha.min = 0; alpha.max = 100; alpha.value = String(Math.round((sc[f.alphaKey] !== undefined ? sc[f.alphaKey] : (f.defaultAlpha !== undefined ? f.defaultAlpha : 1)) * 100)); alpha.style.marginLeft = '8px'; alpha.title = 'Opacity';
+              alpha.addEventListener('input', () => {
+                try {
+                  cfg.siteColors = cfg.siteColors || {};
+                  cfg.siteColors[f.alphaKey] = Number(alpha.value)/100;
+                  applySiteColors(); saveSettings();
+                } catch (e) { log('site alpha set error', e); }
+              });
+              row.appendChild(alpha);
+            }
+            container.appendChild(row);
+          } catch (e) {}
+        }
+      }
+
+      colorsSection.appendChild(colorsList);
+      // initial render
+      renderColorsEditor(colorsList);
 
       // Inventory section
       const invSection = document.createElement('div'); invSection.className = 'mwi-settings-section';
@@ -777,8 +1033,16 @@
       spreadRow.appendChild(spreadLabel); spreadRow.appendChild(spreadInput);
       invSection.appendChild(spreadRow);
 
+      // Inventory setting: toggle inner curved border (disable the bright inset border)
+      const innerRow = document.createElement('div'); innerRow.className = 'mwi-settings-row';
+      const innerLabel = document.createElement('label'); innerLabel.textContent = 'Borders';
+      const innerChk = document.createElement('input'); innerChk.type = 'checkbox'; innerChk.checked = !!cfg.showInnerBorder;
+      innerChk.addEventListener('change', () => { cfg.showInnerBorder = innerChk.checked; saveSettings(); try { if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) {} });
+      innerRow.appendChild(innerLabel); innerRow.appendChild(innerChk);
+      invSection.appendChild(innerRow);
+
       // Category colors editor (read-only list of configured categories)
-      const catSection = document.createElement('div'); catSection.className = 'mwi-settings-section';
+      const catSection = document.createElement('div');
       const catTitle = document.createElement('h4'); catTitle.textContent = 'Category Colors';
       catSection.appendChild(catTitle);
 
@@ -793,14 +1057,21 @@
         }
         for (const k of keys) {
           try {
-            const row = document.createElement('div'); row.className = 'mwi-settings-row';
-            const lbl = document.createElement('div'); lbl.textContent = k; lbl.style.flex = '1'; lbl.style.marginRight = '8px';
-            const colorInput = document.createElement('input'); colorInput.type = 'color';
-            try { colorInput.value = (cfg.categoryColorTiers[k] && String(cfg.categoryColorTiers[k]).trim()) || '#ffffff'; } catch (e) { colorInput.value = '#ffffff'; }
-            colorInput.addEventListener('input', () => {
-              try { cfg.categoryColorTiers[k] = colorInput.value; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) { log('category color set error', e); }
-            });
-            row.appendChild(lbl); row.appendChild(colorInput);
+              const row = document.createElement('div'); row.className = 'mwi-settings-row';
+              const lbl = document.createElement('div'); lbl.textContent = k; lbl.style.flex = '1'; lbl.style.marginRight = '8px';
+              const colorInput = document.createElement('input'); colorInput.type = 'color';
+              try { colorInput.value = (cfg.categoryColorTiers[k] && String(cfg.categoryColorTiers[k]).trim()) || '#ffffff'; } catch (e) { colorInput.value = '#ffffff'; }
+              colorInput.addEventListener('input', () => {
+                try { cfg.categoryColorTiers[k] = colorInput.value; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) { log('category color set error', e); }
+              });
+              row.appendChild(lbl); row.appendChild(colorInput);
+              // alpha slider for category
+              const aVal = (cfg.categoryColorAlphas && cfg.categoryColorAlphas[k] !== undefined) ? cfg.categoryColorAlphas[k] : 1;
+              const alpha = document.createElement('input'); alpha.type = 'range'; alpha.min = 0; alpha.max = 100; alpha.value = String(Math.round(aVal*100)); alpha.style.marginLeft = '8px'; alpha.title = 'Opacity';
+              alpha.addEventListener('input', () => {
+                try { cfg.categoryColorAlphas = cfg.categoryColorAlphas || {}; cfg.categoryColorAlphas[k] = Number(alpha.value)/100; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) { log('category alpha set error', e); }
+              });
+              row.appendChild(alpha);
             container.appendChild(row);
           } catch (e) {}
         }
@@ -812,7 +1083,7 @@
       renderCategoryEditor(catList);
 
       // Quantity tiers editor (editable colors for quantity thresholds)
-      const qtySection = document.createElement('div'); qtySection.className = 'mwi-settings-section';
+      const qtySection = document.createElement('div');
       const qtyTitle = document.createElement('h4'); qtyTitle.textContent = 'Quantity Colors';
       qtySection.appendChild(qtyTitle);
       const qtyList = document.createElement('div'); qtyList.style.marginTop = '6px';
@@ -834,6 +1105,13 @@
               try { cfg.collectionQuantityTiers[i].color = colorInput.value; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) { log('quantity color set error', e); }
             });
             row.appendChild(lbl); row.appendChild(colorInput);
+            // alpha slider for quantity tier
+            const aVal = (t.alpha !== undefined) ? t.alpha : 0.2;
+            const alpha = document.createElement('input'); alpha.type = 'range'; alpha.min = 0; alpha.max = 100; alpha.value = String(Math.round(aVal*100)); alpha.style.marginLeft = '8px'; alpha.title = 'Opacity';
+            alpha.addEventListener('input', () => {
+              try { cfg.collectionQuantityTiers[i].alpha = Number(alpha.value)/100; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) { log('quantity alpha set error', e); }
+            });
+            row.appendChild(alpha);
             container.appendChild(row);
           } catch (e) {}
         }
@@ -867,7 +1145,17 @@
       debugRow.appendChild(dbgLabel); debugRow.appendChild(dbgInput);
       devSection.appendChild(debugRow);
 
-      content.appendChild(invSection); content.appendChild(devSection);
+      // Ensure Themes then Colors section is included at the top, then Inventory and Dev
+      content.appendChild(themesSection);
+      content.appendChild(colorsSection);
+      content.appendChild(invSection);
+      content.appendChild(devSection);
+
+      // credit / signature below Dev
+      const credit = document.createElement('div');
+      credit.style.fontSize = '12px'; credit.style.color = '#9fb7d7'; credit.style.marginTop = '8px'; credit.style.textAlign = 'center';
+      credit.textContent = 'Made by ave (username: collar)';
+      content.appendChild(credit);
 
       const footer = document.createElement('div'); footer.style.marginTop = '12px'; footer.style.textAlign = 'right';
 
@@ -930,8 +1218,8 @@
           const cs = window.getComputedStyle(parent);
           if (cs.position === 'static' || !cs.position) parent.style.position = 'relative';
         } catch (e) {}
-        const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Settings'; btn.textContent = '⚙';
-        btn.setAttribute('aria-label', 'MWI Settings');
+        const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Customizer Settings'; btn.textContent = '⚙ MWI Customizer';
+        btn.setAttribute('aria-label', 'MWI Customizer Settings');
         btn.style.position = 'absolute'; btn.style.right = '8px'; btn.style.top = '8px'; btn.style.zIndex = 9999999;
         btn.addEventListener('click', openSettings);
         // append to parent so it sits over the grid on the far right
@@ -945,13 +1233,13 @@
         let target = container;
         if (container.tagName && container.tagName.toLowerCase() === 'body') {
           // place fixed near right edge if no filter container found
-          const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Settings'; btn.textContent = '⚙';
+          const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Customizer Settings'; btn.textContent = '⚙ MWI Customizer';
           btn.style.position = 'fixed'; btn.style.right = '12px'; btn.style.bottom = '12px'; btn.style.zIndex = 9999999;
           btn.addEventListener('click', openSettings);
           document.body.appendChild(btn); return;
         }
         // try to append next to container
-        const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Settings'; btn.textContent = '⚙';
+        const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Customizer Settings'; btn.textContent = '⚙ MWI Customizer';
         btn.addEventListener('click', openSettings);
         // if container is inline/toolbar, append as child; otherwise append to its parent
         try { container.appendChild(btn); } catch (e) { container.parentElement && container.parentElement.appendChild(btn); }
