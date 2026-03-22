@@ -101,47 +101,7 @@
       text: ''
     }
     ,
-    // Theme presets: each theme can set siteColors and optionally category/quantity palettes
-    selectedTheme: '',
-    themes: {
-      "Default": {},
-      "Dark": {
-        siteColors: {
-          sidePanel: '#000000', sidePanelAlpha: 1,
-          subPanel: '#000000', subPanelAlpha: 1,
-          panelBg: '#000000', panelBgAlpha: 1,
-          chatBg: '#000000', chatBgAlpha: 1,
-          buttonBg: '#000000', buttonBgAlpha: 1,
-          header: '#000000', headerAlpha: 1,
-          accent: '#ffffff', accentAlpha: 1,
-          text: '#ffffff'
-        }
-      },
-      "Amber": {
-        siteColors: {
-          sidePanel: '#2b1a0b', sidePanelAlpha: 1,
-          subPanel: '#3a2310', subPanelAlpha: 0.95,
-          panelBg: '#3a2310', panelBgAlpha: 0.95,
-          chatBg: '#372210', chatBgAlpha: 0.95,
-          buttonBg: '#6b3a12', buttonBgAlpha: 1,
-          header: '#3a2310', headerAlpha: 0.85,
-          accent: '#ffebc2', accentAlpha: 1,
-          text: '#fff6e6'
-        }
-      },
-      "Pink": {
-        siteColors: {
-          sidePanel: '#ff8fb8', sidePanelAlpha: 0.95,
-          subPanel: '#ffd0ea', subPanelAlpha: 0.9,
-          panelBg: '#ff5aa6', panelBgAlpha: 0.3,
-          chatBg: '#ff4d99', chatBgAlpha: 0.3,
-          buttonBg: '#ff2e8b', buttonBgAlpha: 1,
-          header: '#ff8fb8', headerAlpha: 0.95,
-          accent: '#ffffff', accentAlpha: 1,
-          text: '#270712'
-        }
-      }
-    }
+    // Theme presets removed — use siteColors and manual controls in the UI
   };
 
   // Keep an immutable copy of defaults for reset
@@ -167,7 +127,7 @@
 
   function saveSettings() {
     try {
-      const keys = ['debug','outlineWidth','glowAlpha','glowSpread','glowBlur','innerBorderWidth','showInnerBorder','bgAlpha','collectionQuantityTiers','quantityTiers','colorMode','categoryColorTiers','categoryColorAlphas','siteColors','selectedTheme'];
+      const keys = ['debug','outlineWidth','glowAlpha','glowSpread','glowBlur','innerBorderWidth','showInnerBorder','bgAlpha','collectionQuantityTiers','quantityTiers','colorMode','categoryColorTiers','categoryColorAlphas','siteColors'];
       const out = {};
       for (const k of keys) if (cfg[k] !== undefined) out[k] = cfg[k];
       localStorage.setItem(STORAGE_KEY, JSON.stringify(out));
@@ -223,35 +183,7 @@
     } catch (e) { log('applySiteColors error', e); }
   }
 
-  // Apply a named theme preset (if present in cfg.themes)
-  function applyTheme(name) {
-    try {
-      if (!name) return;
-      // If selecting the Default theme, restore DEFAULT_CFG values
-      if (name === 'Default') {
-        try {
-          for (const k of Object.keys(DEFAULT_CFG)) {
-            // deep copy each default key
-            try { cfg[k] = JSON.parse(JSON.stringify(DEFAULT_CFG[k])); } catch (e) { cfg[k] = DEFAULT_CFG[k]; }
-          }
-          // mark selectedTheme so UI reflects choice
-          cfg.selectedTheme = 'Default';
-          applySiteColors(); saveSettings();
-          try { if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) {}
-          return;
-        } catch (e) { log('applyTheme default error', e); }
-      }
-      if (!cfg.themes || !cfg.themes[name]) return;
-      const t = cfg.themes[name];
-      // shallow copy siteColors and optional palettes
-      cfg.siteColors = JSON.parse(JSON.stringify(t.siteColors || {}));
-      if (t.categoryColorTiers) cfg.categoryColorTiers = JSON.parse(JSON.stringify(t.categoryColorTiers));
-      if (t.collectionQuantityTiers) cfg.collectionQuantityTiers = JSON.parse(JSON.stringify(t.collectionQuantityTiers));
-      cfg.selectedTheme = name;
-      applySiteColors(); saveSettings();
-      try { if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) {}
-    } catch (e) { log('applyTheme error', e); }
-  }
+  // Themes removed — use siteColors and manual controls in the UI
 
   // load persisted settings (if any)
   loadSettings();
@@ -280,49 +212,30 @@
     const nameMap = new Map();
     const hridNameMap = new Map();
     const nameToHrid = new Map();
+    // Use init payload if available — handle Map-like or plain object
     try {
-      // Only use the init payload to build name <-> hrid maps; avoid heavy global scanning.
-      if (window.localStorageUtil && typeof window.localStorageUtil.getInitClientData === 'function') {
-        try {
-          const init = window.localStorageUtil.getInitClientData();
-          if (init && init.itemDetailMap) {
-            const idm = init.itemDetailMap;
-            if (typeof idm.forEach === 'function') {
-              idm.forEach((v, k) => {
-                try {
-                  const key = String(k);
-                  if (v && v.name) {
-                    const name = String(v.name).toLowerCase();
-                    nameToHrid.set(name, key);
-                    hridNameMap.set(key, String(v.name));
-                  }
-                  const color = v && (v.collectionColor || v.color || v.hex);
-                  if (color) {
-                    hridMap.set(key, color);
-                    if (v && v.name) nameMap.set(String(v.name).toLowerCase(), color);
-                  }
-                } catch (e) {}
-              });
-            } else {
-              for (const k of Object.keys(idm)) {
-                try {
-                  const v = idm[k];
-                  const key = String(k);
-                  if (v && v.name) {
-                    const name = String(v.name).toLowerCase();
-                    nameToHrid.set(name, key);
-                    hridNameMap.set(key, String(v.name));
-                  }
-                  const color = v && (v.collectionColor || v.color || v.hex);
-                  if (color) {
-                    hridMap.set(key, color);
-                    if (v && v.name) nameMap.set(String(v.name).toLowerCase(), color);
-                  }
-                } catch (e) {}
+      const util = window.localStorageUtil;
+      if (util && typeof util.getInitClientData === 'function') {
+        const init = util.getInitClientData();
+        const idm = init && init.itemDetailMap;
+        if (idm) {
+          const entries = (typeof idm.forEach === 'function' && typeof idm.entries === 'function') ? Array.from(idm.entries()) : Object.entries(idm);
+          for (const [k, v] of entries) {
+            try {
+              const key = String(k);
+              if (v && v.name) {
+                const name = String(v.name).toLowerCase();
+                nameToHrid.set(name, key);
+                hridNameMap.set(key, String(v.name));
               }
-            }
+              const color = v && (v.collectionColor || v.color || v.hex);
+              if (color) {
+                hridMap.set(key, color);
+                if (v && v.name) nameMap.set(String(v.name).toLowerCase(), color);
+              }
+            } catch (e) {}
           }
-        } catch (e) {}
+        }
       }
     } catch (e) { log('discover error', e); }
     return { hridMap, nameMap, hridNameMap, nameToHrid };
@@ -727,51 +640,38 @@
     const inventoryRoots = Array.from(document.querySelectorAll('.Inventory_inventory__17CH2'));
     if (inventoryRoots.length) {
       for (const root of inventoryRoots) {
-        // Prefer explicit item/selectors and data-* attributes only (avoid generic svg/img/icon scanning).
-        const selList = ['[data-item-id], [data-id], [data-item], [data-itemid]'].concat(cfg.inventorySelectors || []);
-        for (const sel of selList) {
-          try {
+        try {
+          const selList = ['[data-item-id], [data-id], [data-item], [data-itemid]'].concat(cfg.inventorySelectors || []);
+          for (const sel of selList) {
             const nl = root.querySelectorAll(sel);
             for (const n of nl) els.add(n);
-          } catch (e) {}
-        }
-        // also include small icon/container wrappers (filtered) so we can target visuals
-        try {
-          const icons = root.querySelectorAll('.Collection_iconContainer__2cD7o, [class*="icon"], [class*="Icon"], [class*="Collection_"]');
-          for (const n of icons) {
-            try { if (isSmallNode(n)) els.add(n); } catch (e) {}
           }
-        } catch (e) {}
-        try {
+          const icons = root.querySelectorAll('.Collection_iconContainer__2cD7o, [class*="icon"], [class*="Icon"], [class*="Collection_"]');
+          for (const n of icons) if (isSmallNode(n)) els.add(n);
           const imgs = root.querySelectorAll('img, svg');
           for (const im of imgs) {
-            try {
-              if (isSmallNode(im)) { els.add(im); continue; }
-              const p = im.closest && im.closest('*');
-              if (p && isSmallNode(p)) els.add(p);
-            } catch (e) {}
+            if (isSmallNode(im)) { els.add(im); continue; }
+            const p = im.closest && im.closest('*');
+            if (p && isSmallNode(p)) els.add(p);
           }
-        } catch (e) {}
+        } catch (e) { /* ignore individual root errors */ }
       }
     } else {
-      // fallback: only target common inventory selectors and data-* attributes
       const globalSel = ['[data-item-id], [data-id], [data-item], [data-itemid]'].concat(cfg.inventorySelectors || []);
-      for (const sel of globalSel) {
-        try {
+      try {
+        for (const sel of globalSel) {
           const nl = document.querySelectorAll(sel);
           for (const n of nl) els.add(n);
-        } catch (e) {}
-      }
-      try {
+        }
         const icons = document.querySelectorAll('.Collection_iconContainer__2cD7o, [class*="icon"], [class*="Icon"], [class*="Collection_"]');
-        for (const n of icons) { try { if (isSmallNode(n)) els.add(n); } catch (e) {} }
-      } catch (e) {}
-      try {
+        for (const n of icons) if (isSmallNode(n)) els.add(n);
         const imgs = document.querySelectorAll('img, svg');
         for (const im of imgs) {
-          try { if (isSmallNode(im)) { els.add(im); continue; } const p = im.closest && im.closest('*'); if (p && isSmallNode(p)) els.add(p); } catch (e) {}
+          if (isSmallNode(im)) { els.add(im); continue; }
+          const p = im.closest && im.closest('*');
+          if (p && isSmallNode(p)) els.add(p);
         }
-      } catch (e) {}
+      } catch (e) { /* ignore fallback selection errors */ }
     }
 
     // Cap number of elements processed to avoid long synchronous loops
@@ -922,32 +822,7 @@
       const notice = document.createElement('div'); notice.className = 'mwi-settings-notice'; notice.textContent = 'Refresh the page for changes to apply.';
       const content = document.createElement('div'); content.style.marginTop = '8px';
 
-      // Themes section (preset combos of Colors)
-      const themesSection = document.createElement('div'); themesSection.className = 'mwi-settings-section';
-      const themesTitle = document.createElement('h4'); themesTitle.textContent = 'Themes';
-      themesSection.appendChild(themesTitle);
-      const themesRow = document.createElement('div'); themesRow.className = 'mwi-settings-row';
-      const themesLabel = document.createElement('label'); themesLabel.textContent = 'Preset';
-      const themesSelect = document.createElement('select');
-      // add an explicit 'Custom' option
-      const customOpt = document.createElement('option'); customOpt.value = '__custom__'; customOpt.textContent = 'Custom'; themesSelect.appendChild(customOpt);
-      try {
-        if (cfg.themes) {
-          for (const name of Object.keys(cfg.themes)) {
-            const o = document.createElement('option'); o.value = name; o.textContent = name; if (cfg.selectedTheme === name) o.selected = true; themesSelect.appendChild(o);
-          }
-        }
-      } catch (e) {}
-      themesSelect.addEventListener('change', () => {
-        try {
-          if (themesSelect.value === '__custom__') { cfg.selectedTheme = ''; saveSettings(); }
-          else { applyTheme(themesSelect.value); }
-          // rerender color/category/quantity editors to reflect current values
-          try { renderColorsEditor(colorsList); renderCategoryEditor(catList); renderQuantityEditor(qtyList); } catch (e) {}
-        } catch (e) { log('theme select error', e); }
-      });
-      themesRow.appendChild(themesLabel); themesRow.appendChild(themesSelect);
-      themesSection.appendChild(themesRow);
+      // Themes removed — no preset UI
 
       // Colors section (sitewide)
       const colorsSection = document.createElement('div'); colorsSection.className = 'mwi-settings-section';
@@ -1145,9 +1020,9 @@
       debugRow.appendChild(dbgLabel); debugRow.appendChild(dbgInput);
       devSection.appendChild(debugRow);
 
-      // Ensure Themes then Colors section is included at the top, then Inventory and Dev
-      content.appendChild(themesSection);
+      // Colors then Inventory and Dev
       content.appendChild(colorsSection);
+      
       content.appendChild(invSection);
       content.appendChild(devSection);
 
