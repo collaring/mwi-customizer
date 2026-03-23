@@ -21,4 +21,5 @@ Usage
 Contact
 - Maintained by `ave` (MWI username: collar)
 
-Also found on: https://greasyfork.org/en/scripts/570632-mwi-customizer
+Greasyfork: https://greasyfork.org/en/scripts/570632-mwi-customizer
+Github: https://github.com/collaring/mwi-customizer
