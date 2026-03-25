@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI Customizer
 // @namespace    https://github.com/collaring
-// @version      1.0
+// @version      1.1
 // @description  Customize Milky Way Idle
 // @match        https://www.milkywayidle.com/game*
 // @match        https://*.milkywayidle.com/*
@@ -116,6 +116,9 @@
       combatAlpha: 1,
       progressBar: '',
       progressBarAlpha: 1,
+      // Selected skill (active navigation link)
+      selectedSkill: '',
+      selectedSkillAlpha: 1,
       accent: '',
       accentAlpha: 1,
       text: ''
@@ -128,6 +131,9 @@
     backgroundOpacity: 1,
     // active theme key (empty = custom/default)
     themeKey: '',
+    // Hide/Organize UI state: per-element hidden flags and ordering
+    hiddenElements: {},
+    organizeOrder: [],
     // Theme presets removed — use siteColors and manual controls in the UI
   };
 
@@ -184,6 +190,38 @@
         accent: '', accentAlpha: 1,
         text: ''
       } }
+  ];
+
+  // Items available for Hide/Organize. Each entry may include an array of
+  // selectors used to find the corresponding site elements to hide/show.
+  // We also include 'separator' type entries where the UI should render a
+  // visual break between groups.
+  const ORGANIZE_ITEMS = [
+    { id: 'marketplace', label: 'Marketplace', selectors: ['[class*="Marketplace"]','[id*="marketplace"]'] },
+    { id: 'tasks', label: 'Tasks', selectors: ['[class*="Tasks"]','[id*="tasks"]'] },
+    { id: 'labyrinth', label: 'Labyrinth', selectors: ['[class*="Labyrinth"]','[id*="labyrinth"]'] },
+    { type: 'separator' },
+    { id: 'milking', label: 'Milking', selectors: ['[class*="Milking"]','[id*="milking"]'] },
+    { id: 'foraging', label: 'Foraging', selectors: ['[class*="Foraging"]','[id*="foraging"]'] },
+    { id: 'woodcutting', label: 'Woodcutting', selectors: ['[class*="Woodcutting"]','[id*="woodcutting"]'] },
+    { id: 'cheesesmithing', label: 'Cheesesmithing', selectors: ['[class*="Cheese"]','[id*="cheese"]'] },
+    { id: 'crafting', label: 'Crafting', selectors: ['[class*="Craft"]','[id*="craft"]'] },
+    { id: 'tailoring', label: 'Tailoring', selectors: ['[class*="Tailor"]','[id*="tailor"]'] },
+    { id: 'cooking', label: 'Cooking', selectors: ['[class*="Cook"]','[id*="cooking"]'] },
+    { id: 'brewing', label: 'Brewing', selectors: ['[class*="Brew"]','[id*="brew"]'] },
+    { id: 'alchemy', label: 'Alchemy', selectors: ['[class*="Alchemy"]','[id*="alchemy"]'] },
+    { id: 'enhancing', label: 'Enhancing', selectors: ['[class*="Enhance"]','[id*="enhance"]'] },
+    { type: 'separator' },
+    { id: 'combat', label: 'Combat', selectors: ['[class*="Combat"]','[id*="combat"]'] },
+    { type: 'separator' },
+    { id: 'shop', label: 'Shop', selectors: ['[class*="Shop"]','[id*="shop"]'] },
+    { id: 'cowbell', label: 'Cowbell Store', selectors: ['[class*="Cowbell"]','[id*="cowbell"]'] },
+    { id: 'loottracker', label: 'Loot Tracker', selectors: ['[class*="LootTracker"]','[id*="loottracker"]'] },
+    { id: 'achievements', label: 'Achievements', selectors: ['[class*="Achievement"]','[id*="achieve"]'] },
+    { id: 'social', label: 'Social', selectors: ['[class*="Social"]','[id*="social"]'] },
+    { id: 'guild', label: 'Guild', selectors: ['[class*="Guild"]','[id*="guild"]'] },
+    { id: 'leaderboard', label: 'Leaderboard', selectors: ['[class*="Leader"]','[id*="leaderboard"]'] },
+    // 'Settings' removed to prevent hiding the settings UI
   ];
 
   const DEV_KEYS = ['debug']; // keys in cfg considered part of Dev category and preserved during auto-reset
@@ -268,6 +306,15 @@
       } else {
         root.style.removeProperty('--mwi-nav-label');
         root.classList.remove('mwi-nav-label-active');
+      }
+      // Selected skill (active nav link)
+      if (sc.selectedSkill) {
+        const ssVal = (sc.selectedSkillAlpha !== undefined && sc.selectedSkillAlpha < 1) ? colorToRGBA(sc.selectedSkill, sc.selectedSkillAlpha) : sc.selectedSkill;
+        root.style.setProperty('--mwi-selected-skill', ssVal);
+        root.classList.add('mwi-nav-selected-active');
+      } else {
+        root.style.removeProperty('--mwi-selected-skill');
+        root.classList.remove('mwi-nav-selected-active');
       }
       if (sc.inventoryLabels) {
         const ilVal = (sc.inventoryLabelsAlpha !== undefined && sc.inventoryLabelsAlpha < 1) ? colorToRGBA(sc.inventoryLabels, sc.inventoryLabelsAlpha) : sc.inventoryLabels;
@@ -377,7 +424,153 @@
       // the variables above (`--mwi-panel-bg`, `--mwi-side-panel-bg`,
       // `--mwi-chat-bg`, `--mwi-button-bg`) and the injected stylesheet will
       // apply those values across the site.
+    try { applyHideOrganize(); } catch (e) {}
     } catch (e) { log('applySiteColors error', e); }
+  }
+
+  // Apply hide/organize settings: hide elements matching selectors when toggled
+  function applyHideOrganize() {
+    try {
+      const order = Array.isArray(cfg.organizeOrder) && cfg.organizeOrder.length ? cfg.organizeOrder : ORGANIZE_ITEMS.filter(i=>i.id).map(i=>i.id);
+      // ensure cfg.organizeOrder initialized
+      if (!Array.isArray(cfg.organizeOrder) || !cfg.organizeOrder.length) cfg.organizeOrder = order.slice();
+      for (const item of ORGANIZE_ITEMS) {
+        if (!item || item.type === 'separator' || !item.id) continue;
+        const hidden = cfg.hiddenElements && cfg.hiddenElements[item.id];
+        const sels = Array.isArray(item.selectors) ? item.selectors : [];
+        for (const s of sels) {
+          try {
+            const els = Array.from(document.querySelectorAll(s));
+            for (const el of els) {
+              try {
+                if (hidden) {
+                  el.style.setProperty('display','none','important');
+                  try { el.dataset.mwiHidden = '1'; } catch (e) {}
+                } else {
+                  try {
+                    if (el.dataset && el.dataset.mwiHidden) {
+                      el.style.removeProperty('display');
+                      delete el.dataset.mwiHidden;
+                    }
+                  } catch (e) {}
+                }
+              } catch (e) {}
+            }
+          } catch (e) {}
+        }
+        // Additionally support targeting navigation entries by label text
+        try {
+          const navs = Array.from(document.querySelectorAll('.NavigationBar_nav__3uuUl'));
+          if (navs.length && item.label) {
+            const want = (String(item.label||'')||'').trim().toLowerCase();
+            for (const n of navs) {
+              try {
+                const labelSpan = n.querySelector('.NavigationBar_label__1uH-y');
+                const txt = labelSpan && labelSpan.textContent ? labelSpan.textContent.trim().toLowerCase() : '';
+                if (!txt) continue;
+                if (txt === want) {
+                  // hide the whole navigationLink wrapper if present
+                  const link = n.closest('.NavigationBar_navigationLink__3eAHA') || n;
+                  try {
+                    if (hidden) {
+                      link.style.setProperty('display','none','important');
+                      try { link.dataset.mwiHidden = '1'; } catch (e) {}
+                    } else {
+                      try {
+                        if (link.dataset && link.dataset.mwiHidden) {
+                          link.style.removeProperty('display');
+                          delete link.dataset.mwiHidden;
+                        }
+                      } catch (e) {}
+                    }
+                  } catch (e) {}
+                }
+              } catch (e) {}
+            }
+          }
+        } catch (e) {}
+      }
+      // Navigation reordering removed — keep original site order.
+    } catch (e) { log('applyHideOrganize error', e); }
+  }
+
+  // Open the organize modal which allows drag/drop ordering and toggling hide
+  function openOrganizeModal() {
+    try {
+      // remove existing
+      const existing = document.getElementById('mwi-organize-overlay'); if (existing) existing.remove();
+      const over = document.createElement('div'); over.id = 'mwi-organize-overlay'; over.style.position = 'fixed'; over.style.inset = '0'; over.style.background = 'rgba(0,0,0,0.6)'; over.style.display = 'flex'; over.style.alignItems = 'center'; over.style.justifyContent = 'center'; over.style.zIndex = '10000030';
+      const dialog = document.createElement('div'); dialog.id = 'mwi-organize-dialog'; dialog.style.position = 'relative'; dialog.style.background = '#0f1720'; dialog.style.color = '#e6eef8'; dialog.style.padding = '12px'; dialog.style.borderRadius = '8px'; dialog.style.width = '420px'; dialog.style.maxWidth = '86%'; dialog.style.maxHeight = '80vh'; dialog.style.overflow = 'hidden'; dialog.style.boxShadow = '0 8px 24px rgba(0,0,0,0.6)'; dialog.style.display = 'flex'; dialog.style.flexDirection = 'column';
+      const title = document.createElement('h3'); title.textContent = 'Hide Elements'; title.style.margin = '0 0 8px 0';
+      // top-right close button (matches main modal close style)
+      const orgClose = document.createElement('button'); orgClose.id = 'mwi-organize-close'; orgClose.textContent = '✕';
+      orgClose.style.position = 'absolute'; orgClose.style.top = '8px'; orgClose.style.right = '8px'; orgClose.style.background = 'transparent'; orgClose.style.border = '0'; orgClose.style.color = '#e6eef8'; orgClose.style.fontSize = '16px'; orgClose.style.cursor = 'pointer'; orgClose.style.padding = '4px';
+      orgClose.addEventListener('click', () => { try { over.remove(); } catch (e) {} });
+      dialog.appendChild(orgClose);
+      dialog.appendChild(title);
+
+      const list = document.createElement('div'); list.className = 'mwi-org-list';
+
+      function renderList() {
+        list.innerHTML = '';
+        const order = Array.isArray(cfg.organizeOrder) && cfg.organizeOrder.length ? cfg.organizeOrder.slice() : ORGANIZE_ITEMS.filter(i=>i.id).map(i=>i.id);
+        const map = {};
+        for (const it of ORGANIZE_ITEMS) if (it && it.id) map[it.id] = it;
+
+        function makeRow(it) {
+          const row = document.createElement('div'); row.className = 'mwi-org-row'; row.dataset.id = it.id;
+          const left = document.createElement('div'); left.style.display = 'flex'; left.style.alignItems = 'center';
+          const lbl = document.createElement('div'); lbl.textContent = it.label; lbl.style.fontSize = '14px'; left.appendChild(lbl);
+          row.appendChild(left);
+          const right = document.createElement('div'); right.style.display = 'flex'; right.style.alignItems = 'center';
+          const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = !!(cfg.hiddenElements && cfg.hiddenElements[it.id]);
+          chk.addEventListener('change', () => { try { cfg.hiddenElements = cfg.hiddenElements || {}; cfg.hiddenElements[it.id] = chk.checked; saveSettings(); applyHideOrganize(); } catch (e) { log('hide toggle error', e); } });
+          const chkLabel = document.createElement('label'); chkLabel.textContent = 'Hide'; chkLabel.style.marginLeft = '8px';
+          right.appendChild(chk); right.appendChild(chkLabel);
+          row.appendChild(right);
+          // Drag & drop removed: rows are not draggable.
+          return row;
+        }
+
+        // group ORGANIZE_ITEMS by separators
+        const groups = []; let current = [];
+        for (const it of ORGANIZE_ITEMS) {
+          if (it.type === 'separator') { groups.push(current); current = []; }
+          else if (it.id) current.push(it.id);
+        }
+        if (current.length) groups.push(current);
+
+        // build rows for items in current order
+        const rowMap = {};
+        for (const id of order) {
+          const it = map[id]; if (!it) continue; rowMap[id] = makeRow(it);
+        }
+
+        // assemble final grouped list, preserving separators between groups
+        const final = document.createElement('div'); final.style.display = 'flex'; final.style.flexDirection = 'column';
+        for (let gi=0; gi<groups.length; gi++) {
+          const grp = groups[gi];
+          // append items in 'order' that belong to this group
+          for (const id of order) { if (grp.indexOf(id) !== -1 && rowMap[id]) final.appendChild(rowMap[id]); }
+          if (gi < groups.length-1) { const sep = document.createElement('div'); sep.className = 'mwi-org-separator'; final.appendChild(sep); }
+        }
+        list.appendChild(final);
+      }
+
+      // Drag/drop persistence removed.
+
+      renderList(); dialog.appendChild(list);
+      const row = document.createElement('div'); row.style.display = 'flex'; row.style.justifyContent = 'center'; row.style.marginTop = '8px';
+      const closeBtn = document.createElement('button'); closeBtn.type = 'button'; closeBtn.textContent = 'Close';
+      // style like main modal action buttons
+      closeBtn.style.background = '#1f7d3d'; closeBtn.style.color = '#fff'; closeBtn.style.border = '0'; closeBtn.style.padding = '8px 12px'; closeBtn.style.borderRadius = '6px';
+      closeBtn.addEventListener('click', () => over.remove());
+      row.appendChild(closeBtn); dialog.appendChild(row);
+      over.appendChild(dialog);
+      // clicking outside closes organize modal only
+      over.addEventListener('click', (ev) => { try { if (ev.target === over) over.remove(); } catch (e) {} });
+      document.body.appendChild(over);
+    } catch (e) { log('openOrganizeModal error', e); }
   }
 
   // Chat-text helpers: only recolor chat message text originally white (rgb(231, 231, 231)).
@@ -472,6 +665,28 @@
   } catch (e) {}
   // immediately apply persisted/site colors
   try { applySiteColors(); } catch (e) {}
+
+  // Ensure hide/organize is applied after dynamic page content loads.
+  try {
+    // small delayed reapply in case elements mount after initial run
+    setTimeout(() => { try { applyHideOrganize(); } catch (e) {} }, 600);
+    // also wait for the navigation container and reapply + observe for changes
+    waitFor(() => document.querySelector('.NavigationBar_navigationLinks__1XSSb') || document.querySelector('.NavigationBar_navigationLinks'), 10000, 200)
+      .then((nav) => {
+        try {
+          if (nav) applyHideOrganize();
+          // debounce helper
+          let to = null;
+          const obs = new MutationObserver((muts) => {
+            try {
+              if (to) clearTimeout(to);
+              to = setTimeout(() => { try { applyHideOrganize(); } catch (e) {} }, 120);
+            } catch (e) {}
+          });
+          try { obs.observe(document.body, { childList: true, subtree: true }); } catch (e) {}
+        } catch (e) {}
+      }).catch(() => {});
+  } catch (e) {}
 
   function log(...args) { if (cfg.debug) console.log('[MWI-HL]', ...args); }
 
@@ -1152,8 +1367,15 @@
           #mwi-section-inventory { border-top:2px solid rgba(255,255,255,0.12); }
           /* Large separator specifically above Background (separates Themes and Background) */
           #mwi-section-background { border-top:2px solid rgba(255,255,255,0.12); }
+          /* Large separator specifically above Hide/Organize Elements */
+          #mwi-section-hide-organize { border-top:2px solid rgba(255,255,255,0.12); }
           /* Large separator specifically above Dev section */
           #mwi-section-dev { border-top:2px solid rgba(255,255,255,0.12); }
+          /* Organize modal rows */
+          .mwi-org-row { display:flex; align-items:center; justify-content:space-between; padding:8px; border:1px solid rgba(255,255,255,0.04); border-radius:6px; margin-bottom:6px; background:transparent; }
+          .mwi-org-separator { height:8px; margin:8px 0; border-top:1px solid rgba(255,255,255,0.06); }
+          .mwi-org-list { max-height: 56vh; overflow:auto; padding:6px; }
+          .mwi-org-row.dragging { opacity:0.5; }
           /* Skill Actions: applied only when user enables it via settings */
           /* Skill Actions: applied only when user enables it via settings (page content only) */
           :root.mwi-skill-actions-active body > :not(#mwi-settings-overlay) .SkillAction_skillAction__1esCp,
@@ -1187,6 +1409,14 @@
           :root.mwi-nav-label-active body > :not(#mwi-settings-overlay) .NavigationBar_label__1uH-y,
           :root.mwi-nav-label-active body > :not(#mwi-settings-overlay) [class*="NavigationBar_label__"] {
             color: var(--mwi-nav-label) !important;
+          }
+          /* Selected skill (active navigation link) */
+          :root.mwi-nav-selected-active body > :not(#mwi-settings-overlay) .NavigationBar_navigationLink__3eAHA.NavigationBar_active__3R-QS,
+          :root.mwi-nav-selected-active body > :not(#mwi-settings-overlay) [class*="NavigationBar_navigationLink__"][class*="NavigationBar_active__"] {
+            background-color: var(--mwi-selected-skill) !important;
+            background-image: none !important;
+            box-shadow: none !important;
+            color: inherit !important;
           }
           /* Inventory label text color (right-side panel labels) */
           :root.mwi-inventory-labels-active body > :not(#mwi-settings-overlay) .Inventory_label__XEOAx,
@@ -1451,9 +1681,11 @@
         const shareRow = document.createElement('div'); shareRow.className = 'mwi-settings-row';
         shareRow.style.alignItems = 'center';
         const exportBtn = document.createElement('button'); exportBtn.type = 'button'; exportBtn.textContent = 'Export';
-        exportBtn.style.marginRight = '8px';
+        // Export: primary green
+        exportBtn.style.background = '#1f7d3d'; exportBtn.style.color = '#fff'; exportBtn.style.border = '0'; exportBtn.style.padding = '6px 10px'; exportBtn.style.borderRadius = '6px'; exportBtn.style.marginRight = '8px';
         const importBtn = document.createElement('button'); importBtn.type = 'button'; importBtn.textContent = 'Import';
-        importBtn.style.marginRight = '8px';
+        // Import: primary blue
+        importBtn.style.background = '#1f4a8a'; importBtn.style.color = '#fff'; importBtn.style.border = '0'; importBtn.style.padding = '6px 10px'; importBtn.style.borderRadius = '6px'; importBtn.style.marginRight = '8px';
         // hidden textarea to show the exported string or accept import
         // Build a reusable modal for Import/Export strings
         function openShareModal(mode, text) {
@@ -1582,6 +1814,22 @@
       } catch (e) {}
 
       bgSection.appendChild(bgList);
+
+      // Hide/Organize Elements section (button opens organize modal)
+      const hideSection = document.createElement('div'); hideSection.className = 'mwi-settings-section'; hideSection.id = 'mwi-section-hide-organize';
+      const hideTitle = document.createElement('h4'); hideTitle.textContent = 'Hide Elements'; hideSection.appendChild(hideTitle);
+      const hideList = document.createElement('div'); hideList.style.marginTop = '6px';
+      try {
+        const openBtnRow = document.createElement('div'); openBtnRow.className = 'mwi-settings-row';
+        const openLabel = document.createElement('label'); openLabel.textContent = 'Manage elements'; openLabel.style.flex = '1';
+        const openBtn = document.createElement('button'); openBtn.type = 'button'; openBtn.textContent = 'Manage';
+        // Manage: neutral gray
+        openBtn.style.background = '#6b7280'; openBtn.style.color = '#fff'; openBtn.style.border = '0'; openBtn.style.padding = '6px 10px'; openBtn.style.borderRadius = '6px'; openBtn.style.marginRight = '8px';
+        openBtn.addEventListener('click', () => { try { openOrganizeModal(); } catch (e) { log('open organize error', e); } });
+        openBtnRow.appendChild(openLabel); openBtnRow.appendChild(openBtn); hideList.appendChild(openBtnRow);
+      } catch (e) {}
+      hideSection.appendChild(hideList);
+
 
       
 
@@ -1808,6 +2056,7 @@
           ]},
           { title: 'Left Side Panel', fields: [
             { key: 'sidePanel', label: 'Panel' , hasAlpha: true, alphaKey: 'sidePanelAlpha', defaultAlpha: 0.2},
+            { key: 'selectedSkill', label: 'Selected Skill', hasAlpha: true, alphaKey: 'selectedSkillAlpha', defaultAlpha: 1},
             { key: 'skillXPBar', label: 'Skill XP Bar', hasAlpha: true, alphaKey: 'skillXPBarAlpha', defaultAlpha: 1},
             { key: 'navLabel', label: 'Text Color', hasAlpha: true, alphaKey: 'navLabelAlpha', defaultAlpha: 1},
             { key: 'level', label: 'Level Text Color', hasAlpha: true, alphaKey: 'levelAlpha', defaultAlpha: 1}
@@ -1901,6 +2150,8 @@
         // Themes, Background (custom image), inventory editors, then Colors
         try { content.appendChild(themesSection); } catch (e) {}
         try { content.appendChild(bgSection); } catch (e) {}
+        // ensure Hide/Organize section is included (button opens organize modal)
+        try { content.appendChild(hideSection); } catch (e) {}
         content.appendChild(invSection);
         content.appendChild(colorsSection);
         // include Dev in the scrolling content so it's not frozen
@@ -1965,7 +2216,14 @@
         const sig = document.createElement('div');
         sig.style.marginTop = '8px'; sig.style.fontSize = '12px'; sig.style.color = '#99b7d9'; sig.style.textAlign = 'center';
         sig.textContent = 'Maintained by ave (MWI username: collar)';
-        dialog.appendChild(sig);
+        // Links row: GitHub | Greasy Fork
+        const links = document.createElement('div');
+        links.style.marginTop = '6px'; links.style.fontSize = '12px'; links.style.color = '#99b7d9'; links.style.textAlign = 'center';
+        const gh = document.createElement('a'); gh.href = 'https://github.com/collaring/mwi-customizer'; gh.textContent = 'GitHub'; gh.target = '_blank'; gh.style.color = '#9ecbff'; gh.style.margin = '0 8px'; gh.style.textDecoration = 'none';
+        const sep = document.createElement('span'); sep.textContent = '|'; sep.style.color = '#6f8fa3'; sep.style.margin = '0 4px';
+        const gf = document.createElement('a'); gf.href = 'https://greasyfork.org/en/scripts/570632-mwi-customizer'; gf.textContent = 'Greasy Fork'; gf.target = '_blank'; gf.style.color = '#9ecbff'; gf.style.margin = '0 8px'; gf.style.textDecoration = 'none';
+        links.appendChild(gh); links.appendChild(sep); links.appendChild(gf);
+        dialog.appendChild(sig); dialog.appendChild(links);
       } catch (e) {}
       overlay.appendChild(dialog); document.body.appendChild(overlay);
       // post-append safety: ensure ordering once dialog rows are inserted
@@ -1981,12 +2239,17 @@
       
     }
 
-    // close modal on Escape key when it's open; prefer closing share/import modal first
+    // close modal on Escape key when it's open; prefer closing organize/share modals first
     document.addEventListener('keydown', (ev) => {
       try {
         if (ev.key === 'Escape' || ev.key === 'Esc') {
+            // close organize modal first (if open)
+            const org = document.getElementById('mwi-organize-overlay');
+            if (org) { try { org.remove(); } catch (e) {} return; }
+            // then share/import modal
             const share = document.getElementById('mwi-share-modal-overlay');
             if (share) { try { share.remove(); } catch (e) {} return; }
+            // finally close the main settings overlay (animate)
             const ov = document.getElementById('mwi-settings-overlay');
             if (ov && ov.style && ov.style.display === 'flex') {
               try { ov.classList.remove('mwi-dialog-open'); ov.classList.add('mwi-dialog-closing'); } catch (e) {}
