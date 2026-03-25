@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  // Configuration: tweak selectors or matches if needed for the site you play on.
+  // Configuration (user-tweakable)
   const cfg = {
     debug: false,
     // A list of DOM selectors that might represent inventory item elements.
@@ -137,15 +137,13 @@
     // Theme presets removed — use siteColors and manual controls in the UI
   };
 
-  // Reset settings on refresh flag (off by default). When true, the script will
-  // restore defaults on page load except for Dev-category keys which are preserved.
+  // Reset-on-refresh flag: when true restores defaults except Dev keys
   cfg.resetOnRefresh = false;
 
   // Keep an immutable copy of defaults for reset
   const DEFAULT_CFG = JSON.parse(JSON.stringify(cfg));
 
-  // Preset themes that map to siteColors values. Selecting one will replace
-  // `cfg.siteColors` with the theme's values (and set `cfg.themeKey`).
+  // Preset themes (map to `cfg.siteColors`)
   const PRESET_THEMES = [
     { key: '', label: 'Custom / Default', siteColors: {} },
     { key: 'dark', label: 'Dark', siteColors: {
@@ -192,10 +190,7 @@
       } }
   ];
 
-  // Items available for Hide/Organize. Each entry may include an array of
-  // selectors used to find the corresponding site elements to hide/show.
-  // We also include 'separator' type entries where the UI should render a
-  // visual break between groups.
+  // Items available for Hide/Organize (id, label, selectors)
   const ORGANIZE_ITEMS = [
     { id: 'marketplace', label: 'Marketplace', selectors: ['[class*="Marketplace"]','[id*="marketplace"]'] },
     { id: 'tasks', label: 'Tasks', selectors: ['[class*="Tasks"]','[id*="tasks"]'] },
@@ -226,7 +221,7 @@
 
   const DEV_KEYS = ['debug']; // keys in cfg considered part of Dev category and preserved during auto-reset
 
-  // Cached category buttons (populated per highlight run to avoid repeated DOM queries)
+  // Cached category buttons (for performance)
   let cachedCategoryButtons = [];
 
   // Settings persistence
@@ -256,7 +251,7 @@
 
   function clearSettings() { try { localStorage.removeItem(STORAGE_KEY); } catch (e) { log('clearSettings error', e); } }
 
-  // Apply stored sitewide colors to the page
+  // Apply stored sitewide colors
   function applySiteColors() {
     try {
       const sc = cfg.siteColors || {};
@@ -419,16 +414,12 @@
           root.classList.remove('mwi-bg-active');
         }
       } catch (e) { log('apply background error', e); }
-      // Use root-level CSS variables only; avoid per-element inline overrides so
-      // dynamically-recreated elements inherit colors consistently. We still set
-      // the variables above (`--mwi-panel-bg`, `--mwi-side-panel-bg`,
-      // `--mwi-chat-bg`, `--mwi-button-bg`) and the injected stylesheet will
-      // apply those values across the site.
+      // Use root-level CSS variables so dynamic elements inherit colors.
     try { applyHideOrganize(); } catch (e) {}
     } catch (e) { log('applySiteColors error', e); }
   }
 
-  // Apply hide/organize settings: hide elements matching selectors when toggled
+  // Apply hide/organize settings
   function applyHideOrganize() {
     try {
       const order = Array.isArray(cfg.organizeOrder) && cfg.organizeOrder.length ? cfg.organizeOrder : ORGANIZE_ITEMS.filter(i=>i.id).map(i=>i.id);
@@ -458,7 +449,7 @@
             }
           } catch (e) {}
         }
-        // Additionally support targeting navigation entries by label text
+        // Also support hiding navigation entries by label text
         try {
           const navs = Array.from(document.querySelectorAll('.NavigationBar_nav__3uuUl'));
           if (navs.length && item.label) {
@@ -490,11 +481,11 @@
           }
         } catch (e) {}
       }
-      // Navigation reordering removed — keep original site order.
+      // Navigation ordering preserved (no reordering)
     } catch (e) { log('applyHideOrganize error', e); }
   }
 
-  // Open the organize modal which allows drag/drop ordering and toggling hide
+  // Open organize modal (hide toggles only)
   function openOrganizeModal() {
     try {
       // remove existing
@@ -557,7 +548,7 @@
         list.appendChild(final);
       }
 
-      // Drag/drop persistence removed.
+      // Drag/drop not implemented; list is static
 
       renderList(); dialog.appendChild(list);
       const row = document.createElement('div'); row.style.display = 'flex'; row.style.justifyContent = 'center'; row.style.marginTop = '8px';
@@ -573,7 +564,7 @@
     } catch (e) { log('openOrganizeModal error', e); }
   }
 
-  // Chat-text helpers: only recolor chat message text originally white (rgb(231, 231, 231)).
+  // Chat-text helpers: recolor message text that is white
   function applyChatTextToNode(node) {
     try {
       if (!node || !(node instanceof Element)) return;
@@ -642,7 +633,7 @@
     } catch (e) { /* ignore */ }
   }
 
-  // Themes removed — use siteColors and manual controls in the UI
+  // Theme presets deprecated — use `siteColors`
 
   // load persisted settings (if any)
   loadSettings();
@@ -739,10 +730,9 @@
     return { hridMap, nameMap, hridNameMap, nameToHrid };
   }
 
-  // NOTE: scanning Collections DOM for colors has been removed for performance reasons.
-  // We will instead fallback to quantity-based coloring when collection colors are not available.
+  // Collection DOM scanning removed; fallback to quantity-based coloring
 
-  // (Removed unused helpers: discoverPlayerInventory, rarityToColor)
+  // Unused helpers removed for clarity
 
   // Build a best-effort key extractor for inventory elements
   function elementItemKey(el) {
