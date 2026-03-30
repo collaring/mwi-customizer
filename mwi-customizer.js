@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MWI Customizer
 // @namespace    https://github.com/collaring
-// @version      1.1
+// @version      1.1.1
 // @description  Customize Milky Way Idle
 // @match        https://www.milkywayidle.com/game*
 // @match        https://*.milkywayidle.com/*
