@@ -1,0 +1,11 @@
+# Ignore local reference files and generated types
+reference.milkywayidle.com.html
+reference.mwi-types.ts
+
+# Node/npm artifacts (optional)
+node_modules/
+npm-debug.log
+
+# OS files
+.DS_Store
+Thumbs.db

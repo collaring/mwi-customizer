@@ -4,7 +4,7 @@ A userscript that adds visual customization and inventory highlighting for Milky
 
 Features
 - Site-wide color overrides (header, panels, chat, buttons, accent, text, etc.)
-- Inventory color coding by Quantity or Category with customizable colors
+- Inventory color coding by Quantity with customizable colors
 - Custom backgrounds
 - Hide elements and skills you don't use
 - Importing/Exporting settings/themes

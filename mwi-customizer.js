@@ -43,32 +43,11 @@
     quantityTiers: null,
     // Color mode: 'Quantity'|'Category'|'None' — controls which coloring strategy is applied
     colorMode: 'Quantity',
+    // 'All' mode: single color applied to all inventory/targets
+    allColor: '#1d8ce0',
+    allAlpha: 1,
     // Category-to-color mapping used when colorMode === 'Category'. Keys are category names.
-    categoryColorTiers: {
-      "Currencies": "#f6c85f",
-      "Loots": "#e07a3e",
-      "Scrolls": "#33ccff",
-      "Labyrinth": "#cc66ff",
-      "Dungeon Keys": "#a85cff",
-      "Foods": "#ff7f50",
-      "Drinks": "#4fc3a1",
-      "Ability Books": "#ffb86b",
-      "Equipment": "#9fb7d7",
-      "Resources": "#7fb069"
-    },
-    // per-category alpha (0-1)
-    categoryColorAlphas: {
-      "Currencies": 0.2,
-      "Loots": 0.2,
-      "Scrolls": 0.2,
-      "Labyrinth": 0.2,
-      "Dungeon Keys": 0.2,
-      "Foods": 0.2,
-      "Drinks": 0.2,
-      "Ability Books": 0.2,
-      "Equipment": 0.2,
-      "Resources": 0.2
-    },
+    // Category color mode removed
     // Collection-style quantity tiers (min inclusive). These attempt to match Collection colors.
     // Edit these thresholds/colors to match your Collections UI precisely.
     collectionQuantityTiers: [
@@ -376,6 +355,41 @@
       } else {
         root.style.removeProperty('--mwi-combat');
         root.classList.remove('mwi-combat-active');
+      }
+      // HP / MP bar colors
+      if (sc.hp) {
+        const hpVal = (sc.hpAlpha !== undefined && sc.hpAlpha < 1) ? colorToRGBA(sc.hp, sc.hpAlpha) : sc.hp;
+        root.style.setProperty('--mwi-hp', hpVal);
+        root.classList.add('mwi-hp-active');
+      } else {
+        root.style.removeProperty('--mwi-hp');
+        root.classList.remove('mwi-hp-active');
+      }
+      if (sc.mp) {
+        const mpVal = (sc.mpAlpha !== undefined && sc.mpAlpha < 1) ? colorToRGBA(sc.mp, sc.mpAlpha) : sc.mp;
+        root.style.setProperty('--mwi-mp', mpVal);
+        root.classList.add('mwi-mp-active');
+      } else {
+        root.style.removeProperty('--mwi-mp');
+        root.classList.remove('mwi-mp-active');
+      }
+      // Attack bar color
+      if (sc.attack) {
+        const attackVal = (sc.attackAlpha !== undefined && sc.attackAlpha < 1) ? colorToRGBA(sc.attack, sc.attackAlpha) : sc.attack;
+        root.style.setProperty('--mwi-attack', attackVal);
+        root.classList.add('mwi-attack-active');
+      } else {
+        root.style.removeProperty('--mwi-attack');
+        root.classList.remove('mwi-attack-active');
+      }
+      // Consumables / Abilities color
+      if (sc.consumables) {
+        const consVal = (sc.consumablesAlpha !== undefined && sc.consumablesAlpha < 1) ? colorToRGBA(sc.consumables, sc.consumablesAlpha) : sc.consumables;
+        root.style.setProperty('--mwi-consumables', consVal);
+        root.classList.add('mwi-consumables-active');
+      } else {
+        root.style.removeProperty('--mwi-consumables');
+        root.classList.remove('mwi-consumables-active');
       }
       if (sc.buttonBg) {
         const btnVal = (sc.buttonBgAlpha !== undefined && sc.buttonBgAlpha < 1) ? colorToRGBA(sc.buttonBg, sc.buttonBgAlpha) : sc.buttonBg;
@@ -1105,22 +1119,12 @@
       return;
     }
     const useQuantity = cfg.colorMode === 'Quantity';
-    const useCategory = cfg.colorMode === 'Category';
+    const useAll = cfg.colorMode === 'All';
 
     // When using Category mode, cache visible category buttons once per run to avoid
     // repeated document.querySelectorAll calls inside inferCategory for each item.
-    if (useCategory) {
-      try {
-        const btns = Array.from(document.querySelectorAll('[class*="Inventory_categoryButton__"]'));
-        cachedCategoryButtons = btns.map(b => {
-          let rect = null;
-          try { rect = b.getBoundingClientRect(); } catch (e) { rect = null; }
-          return { el: b, text: (b.textContent||'').trim(), rect };
-        }).filter(x => x.text && x.rect);
-      } catch (e) { cachedCategoryButtons = []; }
-    } else {
-      cachedCategoryButtons = [];
-    }
+    // Category mode removed — clear any cached category buttons
+    cachedCategoryButtons = [];
 
     // Collect likely item candidates. Keep set small and focused to avoid scanning the whole DOM.
     const els = new Set();
@@ -1169,17 +1173,14 @@
     for (const el of elArray) {
       let colorInfo = null; // { color: '#rrggbb' , alpha: 0-1 }
       // Category mode: try to infer a category and map to configured colors
-      if (useCategory) {
+      // Category mode removed — skip category-based coloring
+
+      // All mode: force single color for everything
+      if (!colorInfo && useAll) {
         try {
-          const cat = inferCategory(el);
-          if (cat) {
-            const tiers = cfg.categoryColorTiers || {};
-            // try exact key, then lower-cased key
-            const c = tiers[cat] || tiers[cat.toLowerCase()] || tiers[(cat.charAt(0).toUpperCase() + cat.slice(1))];
-            const a = (cfg.categoryColorAlphas && cfg.categoryColorAlphas[cat] !== undefined) ? cfg.categoryColorAlphas[cat] : 1;
-            if (c) colorInfo = { color: c, alpha: a };
-            if (cfg.debug) log('Category lookup', cat, '->', colorInfo);
-          }
+          const col = cfg.allColor || '#ffffff';
+          const a = (cfg.allAlpha !== undefined ? cfg.allAlpha : 1);
+          colorInfo = { color: col, alpha: a };
         } catch (e) {}
       }
 
@@ -1432,6 +1433,30 @@
           :root.mwi-system-message-active body > :not(#mwi-settings-overlay) .ChatMessage_systemMessage__3Jz9e,
           :root.mwi-system-message-active body > :not(#mwi-settings-overlay) [class*="ChatMessage_systemMessage__"] {
             color: var(--mwi-system-message) !important;
+          }
+          /* HP / MP bars (user-configurable) */
+          :root.mwi-hp-active body > :not(#mwi-settings-overlay) .HitpointsBar_currentHp__5exLr {
+            background-color: var(--mwi-hp) !important;
+            background-image: none !important;
+            box-shadow: none !important;
+          }
+          :root.mwi-mp-active body > :not(#mwi-settings-overlay) .ManapointsBar_currentMp__3xpqC {
+            background-color: var(--mwi-mp) !important;
+            background-image: none !important;
+            box-shadow: none !important;
+          }
+          /* Attack bar (user-configurable) */
+          :root.mwi-attack-active body > :not(#mwi-settings-overlay) .ProgressBar_innerBar__3Z_sf.ProgressBar_active__Do7AF {
+            background-color: var(--mwi-attack) !important;
+            background-image: none !important;
+            box-shadow: none !important;
+          }
+          /* Consumables / Abilities */
+          :root.mwi-consumables-active body > :not(#mwi-settings-overlay) .Item_item__2De2O.Item_small__1HxwE,
+          :root.mwi-consumables-active body > :not(#mwi-settings-overlay) .Ability_ability__1njrh.Ability_small__1GKAt {
+            background-color: var(--mwi-consumables) !important;
+            background-image: none !important;
+            box-shadow: none !important;
           }
           /* Custom full-page background image (scoped, opt-in). Uses --mwi-bg-image on :root when enabled. */
           :root.mwi-bg-active::before, :root.mwi-bg-preview::before {
@@ -1788,7 +1813,21 @@
         const urlLabel = document.createElement('label'); urlLabel.textContent = 'Image URL';
         const urlInput = document.createElement('input'); urlInput.type = 'text'; urlInput.placeholder = 'https://...'; urlInput.value = cfg.backgroundUrl || '';
         urlInput.style.flex = '1'; urlInput.style.marginLeft = '8px';
-        urlInput.addEventListener('change', () => { cfg.backgroundUrl = urlInput.value; applySiteColors(); saveSettings(); });
+        urlInput.addEventListener('change', () => {
+          try {
+            let v = (urlInput.value || '').trim();
+            if (v) {
+              // If no scheme present but looks like a domain/path, prefix https://
+              // allow protocol-relative URLs (//cdn.example.com/img.png)
+              if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(v) && !v.startsWith('//')) {
+                // naive domain detection (has a dot and no spaces)
+                if (/^[^\s]+\.[^\s]+/.test(v)) v = 'https://' + v;
+              }
+            }
+            cfg.backgroundUrl = v;
+            applySiteColors(); saveSettings();
+          } catch (e) { log('background url change error', e); }
+        });
         // URL input (preview control removed)
         urlRow.appendChild(urlLabel); urlRow.appendChild(urlInput);
         bgList.appendChild(urlRow);
@@ -1832,7 +1871,7 @@
       const modeRow = document.createElement('div'); modeRow.className = 'mwi-settings-row';
       const modeLabel = document.createElement('label'); modeLabel.textContent = 'Color mode';
       const modeSelect = document.createElement('select');
-      ['Quantity','Category','None'].forEach(opt => {
+      ['Quantity','All','None'].forEach(opt => {
         const o = document.createElement('option'); o.value = opt; o.textContent = opt; if (cfg.colorMode === opt) o.selected = true; modeSelect.appendChild(o);
       });
       modeSelect.addEventListener('change', () => {
@@ -1843,6 +1882,34 @@
       });
       modeRow.appendChild(modeLabel); modeRow.appendChild(modeSelect);
       invSection.appendChild(modeRow);
+
+      // All-mode color picker row (hidden unless mode === 'All')
+      const allRow = document.createElement('div'); allRow.className = 'mwi-settings-row';
+      const allLabel = document.createElement('div'); allLabel.textContent = 'All Color'; allLabel.style.flex = '1'; allLabel.style.marginRight = '8px';
+      const allInput = document.createElement('input'); allInput.type = 'color';
+      try { allInput.value = (cfg.allColor && String(cfg.allColor).trim()) || '#1d8ce0'; } catch (e) { allInput.value = '#1d8ce0'; }
+      allInput.addEventListener('input', () => { try { cfg.allColor = allInput.value; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) {} });
+      allRow.appendChild(allLabel); allRow.appendChild(allInput);
+      // alpha slider
+      const allAlpha = document.createElement('input'); allAlpha.type = 'range'; allAlpha.min = 0; allAlpha.max = 100; allAlpha.style.marginLeft = '8px';
+      try { allAlpha.value = String(Math.round((cfg.allAlpha !== undefined ? cfg.allAlpha : 1) * 100)); } catch (e) { allAlpha.value = '100'; }
+      allAlpha.addEventListener('input', () => { try { cfg.allAlpha = Number(allAlpha.value)/100; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) {} });
+      allRow.appendChild(allAlpha);
+      // reset button
+      const allReset = document.createElement('button'); allReset.type = 'button'; allReset.title = 'Reset All color to default'; allReset.textContent = '↺';
+      allReset.style.marginLeft = '8px'; allReset.style.width = '26px'; allReset.style.height = '22px'; allReset.style.borderRadius = '4px'; allReset.style.border = '1px solid rgba(255,255,255,0.06)'; allReset.style.background = 'transparent'; allReset.style.color = '#fff'; allReset.style.cursor = 'pointer';
+      allReset.addEventListener('click', () => {
+        try {
+          if (DEFAULT_CFG && DEFAULT_CFG.allColor) cfg.allColor = DEFAULT_CFG.allColor; else delete cfg.allColor;
+          cfg.allAlpha = (DEFAULT_CFG && DEFAULT_CFG.allAlpha !== undefined) ? DEFAULT_CFG.allAlpha : 1;
+          try { allInput.value = cfg.allColor || '#1d8ce0'; } catch (e) { allInput.value = '#1d8ce0'; }
+          allAlpha.value = String(Math.round((cfg.allAlpha !== undefined ? cfg.allAlpha : 1) * 100));
+          saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan();
+        } catch (e) { log('reset all color error', e); }
+      });
+      allRow.appendChild(allReset);
+      // do not append directly to invSection — will be inserted into the category wrapper
+      // (so All replaces Quantity in the same area)
 
       // Inventory setting: toggle inner curved border (disable the bright inset border)
       const innerRow = document.createElement('div'); innerRow.className = 'mwi-settings-row';
@@ -1861,61 +1928,7 @@
       invSection.appendChild(spreadRow);
       try { invSection.insertBefore(innerRow, spreadRow); } catch (e) {}
 
-      // Category colors editor (read-only list of configured categories) as a subcategory of Inventory
-      const catSection = document.createElement('div'); catSection.className = 'mwi-colors-subsection';
-      const catTitle = document.createElement('h5'); catTitle.textContent = 'Category Colors';
-      catSection.appendChild(catTitle);
-
-      const catList = document.createElement('div');
-      catList.style.marginTop = '6px';
-
-      function renderCategoryEditor(container) {
-        container.innerHTML = '';
-        const keys = Object.keys(cfg.categoryColorTiers || {});
-        if (!keys.length) {
-          const empty = document.createElement('div'); empty.style.fontSize = '12px'; empty.style.color = '#9fb7d7'; empty.textContent = 'No categories configured.'; container.appendChild(empty); return;
-        }
-        for (const k of keys) {
-          try {
-              const row = document.createElement('div'); row.className = 'mwi-settings-row';
-              const lbl = document.createElement('div'); lbl.textContent = k; lbl.style.flex = '1'; lbl.style.marginRight = '8px';
-              const colorInput = document.createElement('input'); colorInput.type = 'color';
-              try { colorInput.value = (cfg.categoryColorTiers[k] && String(cfg.categoryColorTiers[k]).trim()) || '#ffffff'; } catch (e) { colorInput.value = '#ffffff'; }
-              colorInput.addEventListener('input', () => {
-                try { cfg.categoryColorTiers[k] = colorInput.value; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) { log('category color set error', e); }
-              });
-              row.appendChild(lbl); row.appendChild(colorInput);
-              // alpha slider for category
-              const aVal = (cfg.categoryColorAlphas && cfg.categoryColorAlphas[k] !== undefined) ? cfg.categoryColorAlphas[k] : 1;
-              const alpha = document.createElement('input'); alpha.type = 'range'; alpha.min = 0; alpha.max = 100; alpha.value = String(Math.round(aVal*100)); alpha.style.marginLeft = '8px'; alpha.title = 'Opacity';
-              alpha.addEventListener('input', () => {
-                try { cfg.categoryColorAlphas = cfg.categoryColorAlphas || {}; cfg.categoryColorAlphas[k] = Number(alpha.value)/100; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) { log('category alpha set error', e); }
-              });
-              // reset button for this category entry
-              const resetBtn = document.createElement('button'); resetBtn.type = 'button'; resetBtn.title = 'Reset this category to default'; resetBtn.textContent = '↺';
-              resetBtn.style.marginLeft = '8px'; resetBtn.style.width = '26px'; resetBtn.style.height = '22px'; resetBtn.style.borderRadius = '4px'; resetBtn.style.border = '1px solid rgba(255,255,255,0.06)'; resetBtn.style.background = 'transparent'; resetBtn.style.color = '#fff'; resetBtn.style.cursor = 'pointer';
-              resetBtn.addEventListener('click', () => {
-                try {
-                  // restore defaults from DEFAULT_CFG
-                  if (DEFAULT_CFG && DEFAULT_CFG.categoryColorTiers && DEFAULT_CFG.categoryColorTiers[k]) cfg.categoryColorTiers[k] = DEFAULT_CFG.categoryColorTiers[k];
-                  else delete cfg.categoryColorTiers[k];
-                  const defA = (DEFAULT_CFG && DEFAULT_CFG.categoryColorAlphas && DEFAULT_CFG.categoryColorAlphas[k] !== undefined) ? DEFAULT_CFG.categoryColorAlphas[k] : 1;
-                  cfg.categoryColorAlphas = cfg.categoryColorAlphas || {}; cfg.categoryColorAlphas[k] = defA;
-                  // update UI
-                  try { colorInput.value = (cfg.categoryColorTiers[k] && String(cfg.categoryColorTiers[k]).trim()) || '#ffffff'; } catch(e){}
-                  alpha.value = String(Math.round(cfg.categoryColorAlphas[k]*100));
-                  saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan();
-                } catch (e) { log('reset category error', e); }
-              });
-              row.appendChild(alpha); row.appendChild(resetBtn);
-            container.appendChild(row);
-          } catch (e) {}
-        }
-      }
-
-      catSection.appendChild(catList);
-      // initial render
-      renderCategoryEditor(catList);
+      // Category editor removed
 
       // Quantity tiers editor (editable colors for quantity thresholds) as a subcategory of Inventory
       const qtySection = document.createElement('div'); qtySection.className = 'mwi-colors-subsection';
@@ -1975,15 +1988,15 @@
       function updateInventoryEditorsVisibility() {
         try {
           const mode = (cfg && cfg.colorMode) || (modeSelect && modeSelect.value) || 'None';
-          if (mode === 'Category') {
-            catSection.style.display = '';
-            qtySection.style.display = 'none';
-          } else if (mode === 'Quantity') {
-            catSection.style.display = 'none';
+          if (mode === 'Quantity') {
             qtySection.style.display = '';
-          } else {
-            catSection.style.display = 'none';
+            allRow.style.display = 'none';
+          } else if (mode === 'All') {
             qtySection.style.display = 'none';
+            allRow.style.display = '';
+          } else {
+            qtySection.style.display = 'none';
+            allRow.style.display = 'none';
           }
         } catch (e) {}
       }
@@ -2023,8 +2036,11 @@
       const inventoryCategoryWrapper = document.createElement('div');
       inventoryCategoryWrapper.className = 'mwi-settings-section';
       // title removed per request: do not display "Inventory Category" text
-      inventoryCategoryWrapper.appendChild(catSection);
+      // Category editor removed; include quantity editor and the 'All' picker so
+      // they occupy the same subsection and can be toggled (All replaces Quantity)
       inventoryCategoryWrapper.appendChild(qtySection);
+      // append allRow (created earlier) into this wrapper so it shares the same area
+      try { if (typeof allRow !== 'undefined' && allRow) inventoryCategoryWrapper.appendChild(allRow); } catch (e) {}
       invSection.appendChild(inventoryCategoryWrapper);
 
       // ensure local ordering now that rows exist
@@ -2039,10 +2055,17 @@
             { key: 'header', label: 'Header' , hasAlpha: true, alphaKey: 'headerAlpha', defaultAlpha: 0.2},
             { key: 'progressBar', label: 'Progress Bar', hasAlpha: true, alphaKey: 'progressBarAlpha', defaultAlpha: 1}
           ]},
+          { title: 'Combat', fields: [
+            { key: 'combat', label: 'Combat', hasAlpha: true, alphaKey: 'combatAlpha', defaultAlpha: 1},
+            { key: 'hp', label: 'HP', hasAlpha: true, alphaKey: 'hpAlpha', defaultAlpha: 1},
+            { key: 'mp', label: 'MP', hasAlpha: true, alphaKey: 'mpAlpha', defaultAlpha: 1},
+            { key: 'attack', label: 'Attack', hasAlpha: true, alphaKey: 'attackAlpha', defaultAlpha: 1}
+          ,
+            { key: 'consumables', label: 'Consumables / Abilities', hasAlpha: true, alphaKey: 'consumablesAlpha', defaultAlpha: 1}
+          ]},
           { title: 'Main Panel', fields: [
             { key: 'subPanel', label: 'Panel' , hasAlpha: true, alphaKey: 'subPanelAlpha', defaultAlpha: 0.2},
-            { key: 'skillActions', label: 'Skill Actions', hasAlpha: true, alphaKey: 'skillActionsAlpha', defaultAlpha: 1},
-            { key: 'combat', label: 'Combat', hasAlpha: true, alphaKey: 'combatAlpha', defaultAlpha: 1}
+            { key: 'skillActions', label: 'Skill Actions', hasAlpha: true, alphaKey: 'skillActionsAlpha', defaultAlpha: 1}
           ]},
           { title: 'Left Side Panel', fields: [
             { key: 'sidePanel', label: 'Panel' , hasAlpha: true, alphaKey: 'sidePanelAlpha', defaultAlpha: 0.2},
