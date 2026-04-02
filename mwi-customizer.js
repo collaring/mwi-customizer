@@ -1,4 +1,4 @@
-﻿﻿// ==UserScript==
+﻿// ==UserScript==
 // @name         MWI Customizer
 // @namespace    https://github.com/collaring
 // @version      1.2.2
