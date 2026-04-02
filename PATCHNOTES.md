@@ -1,3 +1,8 @@
+v1.2.2
+
+- Added ways to reset Glow and Left side panel order/visibility to their defaults
+- Fixed Chat Text Color config not applying on page refresh
+
 v1.2.1
 
 - Added new animation toggle for Consumables / Abilities usage

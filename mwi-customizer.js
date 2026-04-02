@@ -1,7 +1,7 @@
-﻿// ==UserScript==
+﻿﻿// ==UserScript==
 // @name         MWI Customizer
 // @namespace    https://github.com/collaring
-// @version      1.2.1
+// @version      1.2.2
 // @description  Customize Milky Way Idle
 // @author       collaring <https://github.com/collaring>
 // @license      MIT
@@ -42,7 +42,6 @@
   const cfg = {
     debug: false,
     // A list of DOM selectors that might represent inventory item elements.
-    // Update these after inspecting the page if they don't match your game's DOM.
     inventorySelectors: [
       '.inventory .slot',
       '.inv-slot',
@@ -50,9 +49,6 @@
       '[data-item-id]',
       '.inventory-slot'
     ],
-    // Fallback color when nothing is found (optional)
-    fallbackOutline: 'rgba(255,255,255,0.05)',
-
     // exposed quick-tunable options (defaults; can be overridden at runtime)
     outlineWidth: 2, // px
     glowAlpha: 0.08, // alpha for outer glow
@@ -73,7 +69,6 @@
     allColor: '#1d8ce0',
     allAlpha: 0.2,
     // Category-to-color mapping used when colorMode === 'Category'. Keys are category names.
-    // Category color mode removed
     // Collection-style quantity tiers (min inclusive). These attempt to match Collection colors.
     // Edit these thresholds/colors to match your Collections UI precisely.
     collectionQuantityTiers: [
@@ -246,9 +241,6 @@
 
   const DEV_KEYS = ['debug']; // keys in cfg considered part of Dev category and preserved during auto-reset
 
-  // Cached category buttons (for performance)
-  let cachedCategoryButtons = [];
-
   // Settings persistence
   const STORAGE_KEY = 'mwiCustomizerSettings_v1';
 
@@ -377,7 +369,14 @@
         const ctVal = (sc.chatTextAlpha !== undefined && sc.chatTextAlpha < 1) ? colorToRGBA(sc.chatText, sc.chatTextAlpha) : sc.chatText;
         root.style.setProperty('--mwi-chat-text', ctVal);
         root.classList.add('mwi-chat-text-active');
-        try { applyChatTextToAll(); ensureChatTextObserver(); } catch (e) { log('apply chatText error', e); }
+        try {
+          applyChatTextToAll(); ensureChatTextObserver();
+          // Chat messages may not be in the DOM yet on page load — retry a few times
+          // to catch the initial batch that renders after React mounts.
+          setTimeout(() => { try { applyChatTextToAll(); } catch (e) {} }, 800);
+          setTimeout(() => { try { applyChatTextToAll(); } catch (e) {} }, 2500);
+          setTimeout(() => { try { applyChatTextToAll(); } catch (e) {} }, 5000);
+        } catch (e) { log('apply chatText error', e); }
       } else {
         root.style.removeProperty('--mwi-chat-text');
         root.classList.remove('mwi-chat-text-active');
@@ -766,7 +765,19 @@
       const closeBtn = document.createElement('button'); closeBtn.type = 'button'; closeBtn.textContent = 'Close';
       // style like main modal action buttons
       closeBtn.style.background = '#1f7d3d'; closeBtn.style.color = '#fff'; closeBtn.style.border = '0'; closeBtn.style.padding = '8px 12px'; closeBtn.style.borderRadius = '6px'; closeBtn.classList.add('mwi-push-btn');
-      row.appendChild(closeBtn); dialog.appendChild(row);
+      const orgResetBtn = document.createElement('button'); orgResetBtn.type = 'button'; orgResetBtn.textContent = 'Reset to defaults';
+      orgResetBtn.style.background = '#7f1d1d'; orgResetBtn.style.color = '#fff'; orgResetBtn.style.border = '0'; orgResetBtn.style.padding = '8px 12px'; orgResetBtn.style.borderRadius = '6px'; orgResetBtn.style.marginLeft = '8px'; orgResetBtn.classList.add('mwi-push-btn');
+      orgResetBtn.addEventListener('click', () => {
+        try {
+          cfg.organizeOrder = DEFAULT_CFG.organizeOrder.slice ? DEFAULT_CFG.organizeOrder.slice() : [];
+          cfg.hiddenElements = {};
+          saveSettings();
+          try { applyHideOrganize(); } catch (e) {}
+          try { applyNavOrder(); } catch (e) {}
+          renderList();
+        } catch (e) { log('organize reset error', e); }
+      });
+      row.appendChild(closeBtn); row.appendChild(orgResetBtn); dialog.appendChild(row);
       function closeOrganizeModal() {
         over.classList.remove('mwi-organize-open');
         over.classList.add('mwi-organize-closing');
@@ -850,8 +861,6 @@
       chatTextObserver.observe(document.body, { childList: true, subtree: true });
     } catch (e) { /* ignore */ }
   }
-
-  // Theme presets deprecated 窶・use `siteColors`
 
   // load persisted settings (if any)
   loadSettings();
@@ -947,10 +956,6 @@
     } catch (e) { log('discover error', e); }
     return { hridMap, nameMap, hridNameMap, nameToHrid };
   }
-
-  // Collection DOM scanning removed; fallback to quantity-based coloring
-
-  // Unused helpers removed for clarity
 
   // Build a best-effort key extractor for inventory elements
   function elementItemKey(el) {
@@ -1225,83 +1230,6 @@
     return null;
   }
 
-  // Best-effort category inference for an inventory element.
-  // Tries attributes, dataset keys, nearby section headers, and ancestor labels.
-  function inferCategory(el) {
-    if (!el) return null;
-    try {
-      // direct attributes
-      const attrKeys = ['data-category','data-section','data-group','data-type'];
-      for (const a of attrKeys) {
-        const v = el.getAttribute && el.getAttribute(a);
-        if (v) return String(v).trim();
-      }
-
-      // dataset
-      for (const k of Object.keys(el.dataset || {})) {
-        if (k.toLowerCase().includes('category') || k.toLowerCase().includes('section') || k.toLowerCase().includes('group') || k.toLowerCase().includes('type')) {
-          return String(el.dataset[k]).trim();
-        }
-      }
-
-      // check closest ancestor with a data-category or section-like class
-      let p = el.parentElement;
-      while (p) {
-        try {
-          for (const a of attrKeys) {
-            const v = p.getAttribute && p.getAttribute(a);
-            if (v) return String(v).trim();
-          }
-          const cls = (p.className || '').toString().toLowerCase();
-          if (cls && (cls.includes('category') || cls.includes('section') || cls.includes('group') || cls.includes('inventory'))) {
-            // try to find a header inside this ancestor
-            const hdr = p.querySelector && (p.querySelector('h1,h2,h3,h4,h5,h6,.section-title,.title'));
-            if (hdr && hdr.textContent) return hdr.textContent.trim();
-          }
-        } catch (e) {}
-        p = p.parentElement;
-      }
-
-      // Try to find the nearest category button from the cached list (fast).
-      try {
-        if (cachedCategoryButtons && cachedCategoryButtons.length) {
-          const elRect = el.getBoundingClientRect();
-          let best = null; let bestDist = Infinity;
-          for (const b of cachedCategoryButtons) {
-            try {
-              const br = b.rect;
-              if (br.bottom <= elRect.top + 4 || Math.abs(br.top - elRect.top) < 40) {
-                const dist = Math.abs(elRect.top - br.bottom);
-                if (dist < bestDist) { bestDist = dist; best = b; }
-              }
-            } catch (e) {}
-          }
-          if (!best) {
-            for (const b of cachedCategoryButtons) {
-              try { const dist = Math.abs(elRect.top - b.rect.top); if (dist < bestDist) { bestDist = dist; best = b; } } catch (e) {}
-            }
-          }
-          if (best) return best.text;
-        }
-      } catch (e) {}
-
-      // look for nearby previous heading siblings
-      let prev = el.previousElementSibling;
-      while (prev) {
-        try {
-          if (/H[1-6]/i.test(prev.tagName) && prev.textContent) return prev.textContent.trim();
-          if ((prev.className||'').toString().toLowerCase().includes('title') && prev.textContent) return prev.textContent.trim();
-        } catch (e) {}
-        prev = prev.previousElementSibling;
-      }
-
-      // fallback to element text if short
-      const txt = (el.textContent || '').trim();
-      if (txt && txt.length < 40) return txt.split('\n')[0].trim();
-    } catch (e) {}
-    return null;
-  }
-
   function highlightInventory(maps) {
     const hridMap = maps && maps.hridMap ? maps.hridMap : new Map();
     const nameMap = maps && maps.nameMap ? maps.nameMap : new Map();
@@ -1324,11 +1252,6 @@
     }
     const useQuantity = cfg.colorMode === 'Quantity';
     const useAll = cfg.colorMode === 'All';
-
-    // When using Category mode, cache visible category buttons once per run to avoid
-    // repeated document.querySelectorAll calls inside inferCategory for each item.
-    // Category mode removed 窶・clear any cached category buttons
-    cachedCategoryButtons = [];
 
     // Collect likely item candidates. Keep set small and focused to avoid scanning the whole DOM.
     const els = new Set();
@@ -1377,8 +1300,6 @@
     for (const el of elArray) {
       let colorInfo = null; // { color: '#rrggbb' , alpha: 0-1 }
       // Category mode: try to infer a category and map to configured colors
-      // Category mode removed 窶・skip category-based coloring
-
       // All mode: force single color for everything
       if (!colorInfo && useAll) {
         try {
@@ -2184,7 +2105,7 @@
       const closeBtn = document.createElement('button'); closeBtn.id = 'mwi-settings-close'; closeBtn.textContent = '\u2715';
       closeBtn.addEventListener('click', () => animateClose());
 
-      const title = document.createElement('h3'); title.textContent = 'MWI Customizer Settings - v1.2.1'; title.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; title.style.webkitBackgroundClip = 'text'; title.style.webkitTextFillColor = 'transparent'; title.style.backgroundClip = 'text';
+      const title = document.createElement('h3'); title.textContent = 'MWI Customizer Settings - v1.2.2'; title.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; title.style.webkitBackgroundClip = 'text'; title.style.webkitTextFillColor = 'transparent'; title.style.backgroundClip = 'text';
       const notice = document.createElement('div'); notice.className = 'mwi-settings-notice'; notice.textContent = 'Refresh the page for changes to apply.';
 
       // Search bar (sticky, below notice)
@@ -2256,8 +2177,6 @@
           }
         } catch (e) {}
       }
-
-      // Themes removed 窶・no preset UI
 
       // Colors section (sitewide)
       const colorsSection = document.createElement('div'); colorsSection.className = 'mwi-settings-section'; colorsSection.id = 'mwi-section-site-colors';
@@ -2617,10 +2536,13 @@
 
       // Inventory setting: glow spread
       const spreadRow = document.createElement('div'); spreadRow.className = 'mwi-settings-row';
-      const spreadLabel = document.createElement('label'); spreadLabel.textContent = 'Glow';
+      const spreadLabel = document.createElement('label'); spreadLabel.textContent = 'Glow'; spreadLabel.style.flex = '1';
       const spreadInput = document.createElement('input'); spreadInput.type = 'number'; spreadInput.value = cfg.glowSpread || 6; spreadInput.min = 0;
       spreadInput.addEventListener('change', () => { cfg.glowSpread = Number(spreadInput.value) || cfg.glowSpread; window.MWI_InventoryHighlighter.setGlowSpread(cfg.glowSpread); saveSettings(); });
-      spreadRow.appendChild(spreadLabel); spreadRow.appendChild(spreadInput);
+      const glowResetBtn = document.createElement('button'); glowResetBtn.type = 'button'; glowResetBtn.title = 'Reset to default'; glowResetBtn.textContent = '↺'; glowResetBtn.classList.add('mwi-push-btn');
+      glowResetBtn.style.marginLeft = '2px'; glowResetBtn.style.width = '26px'; glowResetBtn.style.height = '22px'; glowResetBtn.style.borderRadius = '4px'; glowResetBtn.style.border = '1px solid rgba(255,255,255,0.06)'; glowResetBtn.style.background = 'transparent'; glowResetBtn.style.color = '#aaa'; glowResetBtn.style.fontSize = '14px'; glowResetBtn.style.cursor = 'pointer';
+      glowResetBtn.addEventListener('click', () => { cfg.glowSpread = DEFAULT_CFG.glowSpread; spreadInput.value = cfg.glowSpread; try { window.MWI_InventoryHighlighter.setGlowSpread(cfg.glowSpread); } catch (e) {} saveSettings(); });
+      spreadRow.appendChild(spreadLabel); spreadRow.appendChild(spreadInput); spreadRow.appendChild(glowResetBtn);
       invSection.appendChild(spreadRow);
       try { invSection.insertBefore(innerRow, spreadRow); } catch (e) {}
 
@@ -2934,6 +2856,13 @@
           const animSection = document.createElement('div'); animSection.className = 'mwi-settings-section'; animSection.id = 'mwi-section-animations';
           const animTitle = document.createElement('h4'); animTitle.textContent = 'Animations'; animTitle.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; animTitle.style.webkitBackgroundClip = 'text'; animTitle.style.webkitTextFillColor = 'transparent'; animTitle.style.backgroundClip = 'text';
           animSection.appendChild(animTitle);
+          // Sitewide animations sub-section
+          try {
+            const sitewideSub = document.createElement('div'); sitewideSub.className = 'mwi-anim-sub';
+            const sitewideSubTitle = document.createElement('h5'); sitewideSubTitle.textContent = 'Sitewide'; sitewideSubTitle.style.cssText = 'font-size:12px;margin:0 0 6px;background:linear-gradient(90deg,#44aaff,#ff44cc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;';
+            sitewideSub.appendChild(sitewideSubTitle);
+            animSection.appendChild(sitewideSub);
+          } catch (e) {}
           // Combat animations sub-section
           try {
             const combatSub = document.createElement('div'); combatSub.className = 'mwi-anim-sub';
