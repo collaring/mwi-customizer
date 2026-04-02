@@ -1,12 +1,13 @@
 # MWI Customizer
 
-A userscript that adds visual customization and inventory highlighting for Milky Way Idle.
+A userscript that adds visual customization, combat animations, and inventory highlighting for Milky Way Idle.
 
 Features
 - Site-wide color overrides (header, panels, chat, buttons, accent, text, etc.)
+- Combat Animations
 - Inventory color coding by Quantity with customizable colors
 - Custom backgrounds
-- Hide elements and skills you don't use
+- Hide and reorganize elements and skills you don't use
 - Importing/Exporting settings/themes
 - All settings in one place at the top right of your Inventory
 
