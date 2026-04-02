@@ -1,13 +1,39 @@
-// ==UserScript==
+﻿// ==UserScript==
 // @name         MWI Customizer
 // @namespace    https://github.com/collaring
-// @version      1.1.1
+// @version      1.2
 // @description  Customize Milky Way Idle
-// @match        https://www.milkywayidle.com/game*
-// @match        https://*.milkywayidle.com/*
+// @author       collaring
+// @license      MIT
+// @match        https://www.milkywayidle.com/*
+// @match        https://test.milkywayidle.com/*
+// @match        https://www.milkywayidlecn.com/*
+// @match        https://test.milkywayidlecn.com/*
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
+
+// MIT License
+//
+// Copyright (c) 2026 ave
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 (function () {
   'use strict';
@@ -41,17 +67,17 @@
     bgAlpha: 0.12, // background tint alpha
     // allow user override of quantity tiers via cfg.quantityTiers (null = disabled)
     quantityTiers: null,
-    // Color mode: 'Quantity'|'Category'|'None' — controls which coloring strategy is applied
+    // Color mode: 'Quantity'|'Category'|'None' 窶・controls which coloring strategy is applied
     colorMode: 'Quantity',
     // 'All' mode: single color applied to all inventory/targets
     allColor: '#1d8ce0',
-    allAlpha: 1,
+    allAlpha: 0.2,
     // Category-to-color mapping used when colorMode === 'Category'. Keys are category names.
     // Category color mode removed
     // Collection-style quantity tiers (min inclusive). These attempt to match Collection colors.
     // Edit these thresholds/colors to match your Collections UI precisely.
     collectionQuantityTiers: [
-      { min: 1000000, color: '#32c3a4', alpha: 0.2 },
+      { min: 1000000, color: '#ff44cc', alpha: 0.2 },
       { min: 100000, color: '#e3931b', alpha: 0.2 },
       { min: 10000, color: '#d0333d', alpha: 0.2 },
       { min: 1000, color: '#9368cf', alpha: 0.2 },
@@ -85,6 +111,8 @@
         inventoryLabelsAlpha: 1,
         buttonBg: '',
         buttonBgAlpha: 1,
+        tabsBg: '',
+        tabsBgAlpha: 1,
       skillXPBar: '',
       skillXPBarAlpha: 1,
       level: '',
@@ -113,7 +141,13 @@
     // Hide/Organize UI state: per-element hidden flags and ordering
     hiddenElements: {},
     organizeOrder: [],
-    // Theme presets removed — use siteColors and manual controls in the UI
+    // UI style: 'frosted' (default) or 'solid'
+    uiStyle: 'frosted',
+    // Settings button style: 'frosted' (default) or 'solid'
+    btnStyle: 'frosted',
+    // Animations
+    combatAnim: true,
+    // Theme presets removed 窶・use siteColors and manual controls in the UI
   };
 
   // Reset-on-refresh flag: when true restores defaults except Dev keys
@@ -171,31 +205,33 @@
 
   // Items available for Hide/Organize (id, label, selectors)
   const ORGANIZE_ITEMS = [
-    { id: 'marketplace', label: 'Marketplace', selectors: ['[class*="Marketplace"]','[id*="marketplace"]'] },
-    { id: 'tasks', label: 'Tasks', selectors: ['[class*="Tasks"]','[id*="tasks"]'] },
-    { id: 'labyrinth', label: 'Labyrinth', selectors: ['[class*="Labyrinth"]','[id*="labyrinth"]'] },
+    { id: 'marketplace', label: 'Marketplace', icon: { sprite: 'misc', id: 'marketplace' }, selectors: ['[class*="Marketplace"]','[id*="marketplace"]'] },
+    { id: 'tasks', label: 'Tasks', icon: { sprite: 'misc', id: 'tasks' }, selectors: ['[class*="Tasks"]','[id*="tasks"]'] },
+    { id: 'labyrinth', label: 'Labyrinth', icon: { sprite: 'misc', id: 'labyrinth' }, selectors: ['[class*="Labyrinth"]','[id*="labyrinth"]'] },
     { type: 'separator' },
-    { id: 'milking', label: 'Milking', selectors: ['[class*="Milking"]','[id*="milking"]'] },
-    { id: 'foraging', label: 'Foraging', selectors: ['[class*="Foraging"]','[id*="foraging"]'] },
-    { id: 'woodcutting', label: 'Woodcutting', selectors: ['[class*="Woodcutting"]','[id*="woodcutting"]'] },
-    { id: 'cheesesmithing', label: 'Cheesesmithing', selectors: ['[class*="Cheese"]','[id*="cheese"]'] },
-    { id: 'crafting', label: 'Crafting', selectors: ['[class*="Craft"]','[id*="craft"]'] },
-    { id: 'tailoring', label: 'Tailoring', selectors: ['[class*="Tailor"]','[id*="tailor"]'] },
-    { id: 'cooking', label: 'Cooking', selectors: ['[class*="Cook"]','[id*="cooking"]'] },
-    { id: 'brewing', label: 'Brewing', selectors: ['[class*="Brew"]','[id*="brew"]'] },
-    { id: 'alchemy', label: 'Alchemy', selectors: ['[class*="Alchemy"]','[id*="alchemy"]'] },
-    { id: 'enhancing', label: 'Enhancing', selectors: ['[class*="Enhance"]','[id*="enhance"]'] },
+    { id: 'milking', label: 'Milking', icon: { sprite: 'skills', id: 'milking' }, selectors: ['[class*="Milking"]','[id*="milking"]'] },
+    { id: 'foraging', label: 'Foraging', icon: { sprite: 'skills', id: 'foraging' }, selectors: ['[class*="Foraging"]','[id*="foraging"]'] },
+    { id: 'woodcutting', label: 'Woodcutting', icon: { sprite: 'skills', id: 'woodcutting' }, selectors: ['[class*="Woodcutting"]','[id*="woodcutting"]'] },
+    { id: 'cheesesmithing', label: 'Cheesesmithing', icon: { sprite: 'skills', id: 'cheesesmithing' }, selectors: ['[class*="Cheese"]','[id*="cheese"]'] },
+    { id: 'crafting', label: 'Crafting', icon: { sprite: 'skills', id: 'crafting' }, selectors: ['[class*="Craft"]','[id*="craft"]'] },
+    { id: 'tailoring', label: 'Tailoring', icon: { sprite: 'skills', id: 'tailoring' }, selectors: ['[class*="Tailor"]','[id*="tailor"]'] },
+    { id: 'cooking', label: 'Cooking', icon: { sprite: 'skills', id: 'cooking' }, selectors: ['[class*="Cook"]','[id*="cooking"]'] },
+    { id: 'brewing', label: 'Brewing', icon: { sprite: 'skills', id: 'brewing' }, selectors: ['[class*="Brew"]','[id*="brew"]'] },
+    { id: 'alchemy', label: 'Alchemy', icon: { sprite: 'skills', id: 'alchemy' }, selectors: ['[class*="Alchemy"]','[id*="alchemy"]'] },
+    { id: 'enhancing', label: 'Enhancing', icon: { sprite: 'skills', id: 'enhancing' }, selectors: ['[class*="Enhance"]','[id*="enhance"]'] },
     { type: 'separator' },
-    { id: 'combat', label: 'Combat', selectors: ['[class*="Combat"]','[id*="combat"]'] },
+    { id: 'combat', label: 'Combat', icon: { sprite: 'misc', id: 'combat' }, selectors: ['[class*="Combat"]','[id*="combat"]'] },
     { type: 'separator' },
-    { id: 'shop', label: 'Shop', selectors: ['[class*="Shop"]','[id*="shop"]'] },
-    { id: 'cowbell', label: 'Cowbell Store', selectors: ['[class*="Cowbell"]','[id*="cowbell"]'] },
-    { id: 'loottracker', label: 'Loot Tracker', selectors: ['[class*="LootTracker"]','[id*="loottracker"]'] },
-    { id: 'achievements', label: 'Achievements', selectors: ['[class*="Achievement"]','[id*="achieve"]'] },
-    { id: 'social', label: 'Social', selectors: ['[class*="Social"]','[id*="social"]'] },
-    { id: 'guild', label: 'Guild', selectors: ['[class*="Guild"]','[id*="guild"]'] },
-    { id: 'leaderboard', label: 'Leaderboard', selectors: ['[class*="Leader"]','[id*="leaderboard"]'] },
-    // 'Settings' removed to prevent hiding the settings UI
+    { id: 'shop', label: 'Shop', icon: { sprite: 'misc', id: 'shop' }, selectors: ['[class*="Shop"]','[id*="shop"]'] },
+    { id: 'cowbell', label: 'Cowbell Store', icon: { sprite: 'misc', id: 'cowbell_store' }, selectors: ['[class*="Cowbell"]','[id*="cowbell"]'] },
+    { id: 'loottracker', label: 'Loot Tracker', icon: { sprite: 'misc', id: 'loot_tracker' }, selectors: ['[class*="LootTracker"]','[id*="loottracker"]'] },
+    { id: 'achievements', label: 'Achievements', icon: { sprite: 'misc', id: 'achievements' }, selectors: ['[class*="Achievement"]','[id*="achieve"]'] },
+    { id: 'social', label: 'Social', icon: { sprite: 'misc', id: 'social' }, selectors: ['[class*="Social"]','[id*="social"]'] },
+    { id: 'guild', label: 'Guild', icon: { sprite: 'misc', id: 'guild' }, selectors: ['[class*="Guild"]','[id*="guild"]'] },
+    { id: 'leaderboard', label: 'Leaderboard', icon: { sprite: 'misc', id: 'leaderboard' }, selectors: ['[class*="Leader"]','[id*="leaderboard"]'] },
+    { type: 'separator' },
+    { id: 'settings', label: 'Settings', icon: { sprite: 'misc', id: 'settings' }, selectors: [], noHide: true },
+    { id: 'links', label: 'Links', icon: { sprite: 'misc', id: 'patch_notes' }, selectors: ['[class*="minorNavigationLinks"]'] },
   ];
 
   const DEV_KEYS = ['debug']; // keys in cfg considered part of Dev category and preserved during auto-reset
@@ -399,6 +435,14 @@
         root.style.removeProperty('--mwi-button-bg');
         root.classList.remove('mwi-button-bg-active');
       }
+      if (sc.tabsBg) {
+        const tabsBgVal = (sc.tabsBgAlpha !== undefined && sc.tabsBgAlpha < 1) ? colorToRGBA(sc.tabsBg, sc.tabsBgAlpha) : sc.tabsBg;
+        root.style.setProperty('--mwi-tabs-bg', tabsBgVal);
+        root.classList.add('mwi-tabs-bg-active');
+      } else {
+        root.style.removeProperty('--mwi-tabs-bg');
+        root.classList.remove('mwi-tabs-bg-active');
+      }
       if (sc.accent) {
         const accVal = (sc.accentAlpha !== undefined && sc.accentAlpha < 1) ? colorToRGBA(sc.accent, sc.accentAlpha) : sc.accent;
         root.style.setProperty('--mwi-accent', accVal);
@@ -439,6 +483,8 @@
       const order = Array.isArray(cfg.organizeOrder) && cfg.organizeOrder.length ? cfg.organizeOrder : ORGANIZE_ITEMS.filter(i=>i.id).map(i=>i.id);
       // ensure cfg.organizeOrder initialized
       if (!Array.isArray(cfg.organizeOrder) || !cfg.organizeOrder.length) cfg.organizeOrder = order.slice();
+      // append any newly-added items not yet in the saved order (e.g. after importing an old theme)
+      for (const item of ORGANIZE_ITEMS) { if (item.id && item.type !== 'separator' && !cfg.organizeOrder.includes(item.id)) cfg.organizeOrder.push(item.id); }
       for (const item of ORGANIZE_ITEMS) {
         if (!item || item.type === 'separator' || !item.id) continue;
         const hidden = cfg.hiddenElements && cfg.hiddenElements[item.id];
@@ -495,8 +541,42 @@
           }
         } catch (e) {}
       }
-      // Navigation ordering preserved (no reordering)
+      // Also reorder nav elements in the DOM
+      try { applyNavOrder(); } catch(e) {}
     } catch (e) { log('applyHideOrganize error', e); }
+  }
+
+  // Reorder navigation items in the game DOM to match cfg.organizeOrder
+  function applyNavOrder() {
+    try {
+      const order = Array.isArray(cfg.organizeOrder) && cfg.organizeOrder.length ? cfg.organizeOrder : ORGANIZE_ITEMS.filter(i=>i.id).map(i=>i.id);
+      // Build label 竊・id map
+      const labelToId = {};
+      for (const it of ORGANIZE_ITEMS) { if (it.id && it.label) labelToId[it.label.trim().toLowerCase()] = it.id; }
+      // Find all nav link elements (hashed class names)
+      const navLinks = Array.from(document.querySelectorAll('[class*="NavigationBar_navigationLink"]'));
+      if (!navLinks.length) return;
+      // Match each nav link to an id by its label text
+      const idToEl = {};
+      for (const link of navLinks) {
+        const labelEl = link.querySelector('[class*="NavigationBar_label"]');
+        const txt = labelEl ? labelEl.textContent.trim().toLowerCase() : '';
+        if (txt && labelToId[txt]) idToEl[labelToId[txt]] = link;
+      }
+      // Also map 'links' to the minorNavigationLinks element (different element type, same container)
+      const minorLinks = document.querySelector('[class*="NavigationBar_minorNavigationLinks"]');
+      if (minorLinks) idToEl['links'] = minorLinks;
+      // Find container (parent of first matched element)
+      const firstMatched = Object.values(idToEl)[0];
+      if (!firstMatched) return;
+      const container = firstMatched.parentElement;
+      if (!container) return;
+      // Append each ordered element to end of container in sequence
+      for (const id of order) {
+        const el = idToEl[id];
+        if (el && el.parentElement === container) container.appendChild(el);
+      }
+    } catch (e) { log('applyNavOrder error', e); }
   }
 
   // Open organize modal (hide toggles only)
@@ -506,75 +586,153 @@
       const existing = document.getElementById('mwi-organize-overlay'); if (existing) existing.remove();
       const over = document.createElement('div'); over.id = 'mwi-organize-overlay'; over.style.position = 'fixed'; over.style.inset = '0'; over.style.background = 'rgba(0,0,0,0.6)'; over.style.display = 'flex'; over.style.alignItems = 'center'; over.style.justifyContent = 'center'; over.style.zIndex = '10000030';
       const dialog = document.createElement('div'); dialog.id = 'mwi-organize-dialog'; dialog.style.position = 'relative'; dialog.style.background = '#0f1720'; dialog.style.color = '#e6eef8'; dialog.style.padding = '12px'; dialog.style.borderRadius = '8px'; dialog.style.width = '420px'; dialog.style.maxWidth = '86%'; dialog.style.maxHeight = '80vh'; dialog.style.overflow = 'hidden'; dialog.style.boxShadow = '0 8px 24px rgba(0,0,0,0.6)'; dialog.style.display = 'flex'; dialog.style.flexDirection = 'column';
-      const title = document.createElement('h3'); title.textContent = 'Hide Elements'; title.style.margin = '0 0 8px 0';
+      const title = document.createElement('h3'); title.textContent = 'Customize Left Side Panel'; title.style.margin = '0 0 8px 0'; title.style.background = 'linear-gradient(90deg, #44aaff, #ff44cc)'; title.style.webkitBackgroundClip = 'text'; title.style.webkitTextFillColor = 'transparent'; title.style.backgroundClip = 'text';
       // top-right close button (matches main modal close style)
-      const orgClose = document.createElement('button'); orgClose.id = 'mwi-organize-close'; orgClose.textContent = '✕';
+      const orgClose = document.createElement('button'); orgClose.id = 'mwi-organize-close'; orgClose.textContent = '\u2715';
       orgClose.style.position = 'absolute'; orgClose.style.top = '8px'; orgClose.style.right = '8px'; orgClose.style.background = 'transparent'; orgClose.style.border = '0'; orgClose.style.color = '#e6eef8'; orgClose.style.fontSize = '16px'; orgClose.style.cursor = 'pointer'; orgClose.style.padding = '4px';
-      orgClose.addEventListener('click', () => { try { over.remove(); } catch (e) {} });
       dialog.appendChild(orgClose);
       dialog.appendChild(title);
 
       const list = document.createElement('div'); list.className = 'mwi-org-list';
 
+      // Resolve sprite URL from live DOM by matching a partial filename
+      function getSpriteUrl(spriteKey) {
+        try {
+          const uses = document.querySelectorAll('svg use[href*="' + spriteKey + '_sprite"]');
+          if (uses.length) { const href = uses[0].getAttribute('href'); return href ? href.split('#')[0] : null; }
+        } catch (e) {}
+        return null;
+      }
+      const skillsSpriteUrl = getSpriteUrl('skills');
+      const miscSpriteUrl = getSpriteUrl('misc');
+
+      let dragSrcId = null;
+
       function renderList() {
         list.innerHTML = '';
         const order = Array.isArray(cfg.organizeOrder) && cfg.organizeOrder.length ? cfg.organizeOrder.slice() : ORGANIZE_ITEMS.filter(i=>i.id).map(i=>i.id);
+        // append newly-added items not yet in saved order (e.g. old imported theme)
+        for (const it of ORGANIZE_ITEMS) { if (it.id && it.type !== 'separator' && !order.includes(it.id)) order.push(it.id); }
         const map = {};
         for (const it of ORGANIZE_ITEMS) if (it && it.id) map[it.id] = it;
 
         function makeRow(it) {
           const row = document.createElement('div'); row.className = 'mwi-org-row'; row.dataset.id = it.id;
-          const left = document.createElement('div'); left.style.display = 'flex'; left.style.alignItems = 'center';
-          const lbl = document.createElement('div'); lbl.textContent = it.label; lbl.style.fontSize = '14px'; left.appendChild(lbl);
-          row.appendChild(left);
-          const right = document.createElement('div'); right.style.display = 'flex'; right.style.alignItems = 'center';
-          const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = !!(cfg.hiddenElements && cfg.hiddenElements[it.id]);
-          chk.addEventListener('change', () => { try { cfg.hiddenElements = cfg.hiddenElements || {}; cfg.hiddenElements[it.id] = chk.checked; saveSettings(); applyHideOrganize(); } catch (e) { log('hide toggle error', e); } });
-          const chkLabel = document.createElement('label'); chkLabel.textContent = 'Hide'; chkLabel.style.marginLeft = '8px';
-          right.appendChild(chk); right.appendChild(chkLabel);
+          row.draggable = true;
+
+          // Drag handle 窶・fixed width col
+          const handleWrap = document.createElement('div'); handleWrap.className = 'mwi-org-row-handle';
+          const handle = document.createElement('span'); handle.className = 'mwi-drag-handle'; handle.textContent = '⣿';
+          handle.title = 'Drag to reorder';
+          handleWrap.appendChild(handle); row.appendChild(handleWrap);
+
+          // Icon 窶・fixed width col
+          const iconWrap = document.createElement('div'); iconWrap.className = 'mwi-org-row-icon';
+          if (it.icon) {
+            try {
+              const spriteUrl = it.icon.sprite === 'skills' ? skillsSpriteUrl : miscSpriteUrl;
+              if (spriteUrl) {
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('role', 'img'); svg.setAttribute('width', '20'); svg.setAttribute('height', '20');
+                svg.style.flexShrink = '0';
+                const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+                use.setAttribute('href', spriteUrl + '#' + it.icon.id);
+                svg.appendChild(use); iconWrap.appendChild(svg);
+              }
+            } catch (e) {}
+          }
+          row.appendChild(iconWrap);
+
+          // Label 窶・fills remaining space
+          const lbl = document.createElement('div'); lbl.className = 'mwi-org-row-label'; lbl.textContent = it.label;
+          row.appendChild(lbl);
+
+          // Right side
+          const right = document.createElement('div'); right.className = 'mwi-org-row-right';
+          if (it.noHide) {
+            const badge = document.createElement('span'); badge.textContent = 'drag only'; badge.style.fontSize = '11px'; badge.style.opacity = '0.4'; badge.style.fontStyle = 'italic';
+            right.appendChild(badge);
+          } else {
+            const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = !!(cfg.hiddenElements && cfg.hiddenElements[it.id]);
+            chk.addEventListener('change', () => { try { cfg.hiddenElements = cfg.hiddenElements || {}; cfg.hiddenElements[it.id] = chk.checked; saveSettings(); applyHideOrganize(); } catch (e) { log('hide toggle error', e); } });
+            const chkLabel = document.createElement('label'); chkLabel.textContent = 'Hide'; chkLabel.style.marginLeft = '8px';
+            right.appendChild(chk); right.appendChild(chkLabel);
+            // Clicking anywhere in the row (except handle) also toggles the checkbox
+            row.style.cursor = 'pointer';
+            row.addEventListener('click', (ev) => { try { if (ev.target === chk || ev.target === handle) return; chk.checked = !chk.checked; chk.dispatchEvent(new Event('change')); } catch (e) {} });
+          }
           row.appendChild(right);
-          // Drag & drop removed: rows are not draggable.
+
+          // Drag events
+          row.addEventListener('dragstart', (ev) => {
+            dragSrcId = it.id;
+            row.classList.add('dragging');
+            ev.dataTransfer.effectAllowed = 'move';
+            ev.dataTransfer.setData('text/plain', it.id);
+          });
+          row.addEventListener('dragend', () => {
+            row.classList.remove('dragging');
+            list.querySelectorAll('.mwi-org-row').forEach(r => r.classList.remove('drag-over-top','drag-over-bottom'));
+          });
+          row.addEventListener('dragover', (ev) => {
+            ev.preventDefault(); ev.dataTransfer.dropEffect = 'move';
+            if (!dragSrcId || dragSrcId === it.id) return;
+            const rect = row.getBoundingClientRect();
+            const half = rect.top + rect.height / 2;
+            list.querySelectorAll('.mwi-org-row').forEach(r => r.classList.remove('drag-over-top','drag-over-bottom'));
+            row.classList.add(ev.clientY < half ? 'drag-over-top' : 'drag-over-bottom');
+          });
+          row.addEventListener('dragleave', () => row.classList.remove('drag-over-top','drag-over-bottom'));
+          row.addEventListener('drop', (ev) => {
+            ev.preventDefault();
+            row.classList.remove('drag-over-top','drag-over-bottom');
+            if (!dragSrcId || dragSrcId === it.id) return;
+            const currentOrder = Array.isArray(cfg.organizeOrder) && cfg.organizeOrder.length ? cfg.organizeOrder.slice() : ORGANIZE_ITEMS.filter(i=>i.id).map(i=>i.id);
+            const fromIdx = currentOrder.indexOf(dragSrcId);
+            let toIdx = currentOrder.indexOf(it.id);
+            if (fromIdx === -1 || toIdx === -1) return;
+            const rect = row.getBoundingClientRect();
+            const insertBefore = ev.clientY < rect.top + rect.height / 2;
+            currentOrder.splice(fromIdx, 1);
+            toIdx = currentOrder.indexOf(it.id);
+            currentOrder.splice(insertBefore ? toIdx : toIdx + 1, 0, dragSrcId);
+            cfg.organizeOrder = currentOrder;
+            saveSettings();
+            try { applyNavOrder(); } catch(e) {}
+            renderList();
+            dragSrcId = null;
+          });
+
           return row;
         }
 
-        // group ORGANIZE_ITEMS by separators
-        const groups = []; let current = [];
-        for (const it of ORGANIZE_ITEMS) {
-          if (it.type === 'separator') { groups.push(current); current = []; }
-          else if (it.id) current.push(it.id);
-        }
-        if (current.length) groups.push(current);
-
-        // build rows for items in current order
-        const rowMap = {};
+        // Render all items in current order (flat, no grouping by separator)
+        const container = document.createElement('div'); container.style.display = 'flex'; container.style.flexDirection = 'column';
         for (const id of order) {
-          const it = map[id]; if (!it) continue; rowMap[id] = makeRow(it);
+          const it = map[id]; if (!it) continue;
+          container.appendChild(makeRow(it));
         }
-
-        // assemble final grouped list, preserving separators between groups
-        const final = document.createElement('div'); final.style.display = 'flex'; final.style.flexDirection = 'column';
-        for (let gi=0; gi<groups.length; gi++) {
-          const grp = groups[gi];
-          // append items in 'order' that belong to this group
-          for (const id of order) { if (grp.indexOf(id) !== -1 && rowMap[id]) final.appendChild(rowMap[id]); }
-          if (gi < groups.length-1) { const sep = document.createElement('div'); sep.className = 'mwi-org-separator'; final.appendChild(sep); }
-        }
-        list.appendChild(final);
+        list.appendChild(container);
       }
-
-      // Drag/drop not implemented; list is static
 
       renderList(); dialog.appendChild(list);
       const row = document.createElement('div'); row.style.display = 'flex'; row.style.justifyContent = 'center'; row.style.marginTop = '8px';
       const closeBtn = document.createElement('button'); closeBtn.type = 'button'; closeBtn.textContent = 'Close';
       // style like main modal action buttons
-      closeBtn.style.background = '#1f7d3d'; closeBtn.style.color = '#fff'; closeBtn.style.border = '0'; closeBtn.style.padding = '8px 12px'; closeBtn.style.borderRadius = '6px';
-      closeBtn.addEventListener('click', () => over.remove());
+      closeBtn.style.background = '#1f7d3d'; closeBtn.style.color = '#fff'; closeBtn.style.border = '0'; closeBtn.style.padding = '8px 12px'; closeBtn.style.borderRadius = '6px'; closeBtn.classList.add('mwi-push-btn');
       row.appendChild(closeBtn); dialog.appendChild(row);
+      function closeOrganizeModal() {
+        over.classList.remove('mwi-organize-open');
+        over.classList.add('mwi-organize-closing');
+        setTimeout(() => { try { over.remove(); } catch (e) {} }, 200);
+      }
+      orgClose.addEventListener('click', () => closeOrganizeModal());
+      closeBtn.addEventListener('click', () => closeOrganizeModal());
       over.appendChild(dialog);
       // clicking outside closes organize modal only
-      over.addEventListener('click', (ev) => { try { if (ev.target === over) over.remove(); } catch (e) {} });
+      over.addEventListener('click', (ev) => { try { if (ev.target === over) closeOrganizeModal(); } catch (e) {} });
       document.body.appendChild(over);
+      requestAnimationFrame(() => requestAnimationFrame(() => over.classList.add('mwi-organize-open')));
     } catch (e) { log('openOrganizeModal error', e); }
   }
 
@@ -647,7 +805,7 @@
     } catch (e) { /* ignore */ }
   }
 
-  // Theme presets deprecated — use `siteColors`
+  // Theme presets deprecated 窶・use `siteColors`
 
   // load persisted settings (if any)
   loadSettings();
@@ -715,7 +873,7 @@
     const nameMap = new Map();
     const hridNameMap = new Map();
     const nameToHrid = new Map();
-    // Use init payload if available — handle Map-like or plain object
+    // Use init payload if available 窶・handle Map-like or plain object
     try {
       const util = window.localStorageUtil;
       if (util && typeof util.getInitClientData === 'function') {
@@ -952,7 +1110,7 @@
       if (el.parentElement && isSmallNode(el.parentElement)) return el.parentElement;
       if (isSmallNode(el)) return el;
     } catch (e) {}
-    // nothing appropriate — avoid styling large containers
+    // nothing appropriate 窶・avoid styling large containers
     return null;
   }
 
@@ -1107,7 +1265,7 @@
     const nameKeys = Array.from(nameMap.keys()).sort((a,b)=>b.length - a.length);
 
     // Debug: report map sizes and a small sample
-    log('highlightInventory — hridMap size:', hridMap.size, 'nameMap size:', nameMap.size, 'hridNameMap size:', hridNameMap.size, 'nameToHrid size:', nameToHrid.size);
+    log('highlightInventory 窶・hridMap size:', hridMap.size, 'nameMap size:', nameMap.size, 'hridNameMap size:', hridNameMap.size, 'nameToHrid size:', nameToHrid.size);
     if (cfg.debug && nameMap.size) {
       const sample = Array.from(nameMap.entries()).slice(0,5).map(e => e[0] + '->' + e[1]);
       log('nameMap sample:', sample);
@@ -1115,7 +1273,7 @@
 
     // Evaluate which coloring strategy to use
     if (cfg.colorMode === 'None') {
-      log('highlightInventory skipped — colorMode: None');
+      log('highlightInventory skipped 窶・colorMode: None');
       return;
     }
     const useQuantity = cfg.colorMode === 'Quantity';
@@ -1123,7 +1281,7 @@
 
     // When using Category mode, cache visible category buttons once per run to avoid
     // repeated document.querySelectorAll calls inside inferCategory for each item.
-    // Category mode removed — clear any cached category buttons
+    // Category mode removed 窶・clear any cached category buttons
     cachedCategoryButtons = [];
 
     // Collect likely item candidates. Keep set small and focused to avoid scanning the whole DOM.
@@ -1173,7 +1331,7 @@
     for (const el of elArray) {
       let colorInfo = null; // { color: '#rrggbb' , alpha: 0-1 }
       // Category mode: try to infer a category and map to configured colors
-      // Category mode removed — skip category-based coloring
+      // Category mode removed 窶・skip category-based coloring
 
       // All mode: force single color for everything
       if (!colorInfo && useAll) {
@@ -1272,10 +1430,23 @@
     // --- Settings UI (button + modal) ---
     function injectStyles() {
       const css = `
-          #mwi-settings-btn { display:inline-flex; align-items:center; justify-content:center; min-width:36px; height:36px; padding:6px 10px; border-radius:6px; background:#222; color:#fff; border:1px solid rgba(255,255,255,0.06); cursor:pointer; margin-left:8px; }
-          #mwi-settings-btn:hover { opacity:0.95; }
+          #mwi-settings-btn { display:inline-flex; align-items:center; justify-content:center; min-width:36px; height:36px; padding:6px 10px; border-radius:6px; background:#222; color:#fff; border:1px solid rgba(255,255,255,0.06); cursor:pointer; margin-left:8px; transition: filter 120ms ease; }
+          #mwi-settings-btn:hover { filter: brightness(1.25); }
+          #mwi-settings-btn:active { transform: translateY(1px) scale(0.96); filter: brightness(0.85); }
+          /* Frosted button style (default) */
+          #mwi-settings-btn.mwi-btn-frosted { background: linear-gradient(90deg, rgba(255,68,204,0.18), rgba(68,170,255,0.18)); border: 1px solid rgba(255,255,255,0.15); color: transparent; background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; position: relative; }
+          #mwi-settings-btn.mwi-btn-frosted::before { content:''; position:absolute; inset:0; border-radius:inherit; background: linear-gradient(90deg, rgba(255,68,204,0.18), rgba(68,170,255,0.18)); z-index:0; }
+          #mwi-settings-btn.mwi-btn-frosted span { position:relative; z-index:1; background: linear-gradient(90deg, #ff44cc, #44aaff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+          .mwi-push-btn { transition: filter 120ms ease !important; cursor: pointer; }
+          .mwi-push-btn:hover { filter: brightness(1.25) !important; }
+          .mwi-push-btn:active { transform: translateY(1px) scale(0.96) !important; filter: brightness(0.85) !important; }
           #mwi-settings-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:9999999; }
-          #mwi-settings-dialog { background:#0f1720; color:#e6eef8; padding:16px; border-radius:8px; width:520px; max-width:92%; box-shadow:0 8px 24px rgba(0,0,0,0.6); display:flex; flex-direction:column; position:relative; }
+          #mwi-settings-dialog { background: rgba(15,23,32,0.25); backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); border: 1px solid rgba(255,255,255,0.08); color:#e6eef8; padding:16px; border-radius:12px; width:520px; max-width:92%; box-shadow:0 8px 32px rgba(0,0,0,0.7); display:flex; flex-direction:column; position:relative; overflow:hidden; }
+          #mwi-settings-dialog::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; background: radial-gradient(400px circle at var(--glow-x,50%) var(--glow-y,50%), rgba(255,68,204,0.13) 0%, transparent 70%); transition: background 0.1s ease; z-index:0; }
+          #mwi-settings-dialog > * { position:relative; z-index:1; }
+          /* Solid UI style overrides */
+          #mwi-settings-dialog.mwi-ui-solid { background: #0f1720; backdrop-filter: none; -webkit-backdrop-filter: none; border: 1px solid rgba(255,255,255,0.12); }
+          #mwi-settings-dialog.mwi-ui-solid::before { display: none; }
           /* Dialog pop animations - more noticeable pop with overshoot */
           @keyframes mwi-pop-in {
             0% { transform: translateY(-20px) scale(0.9); opacity: 0; }
@@ -1299,8 +1470,10 @@
           #mwi-settings-close { position:absolute; top:10px; right:10px; cursor:pointer; background:transparent; border:0; color:#fff; font-size:16px; z-index:10000002; }
           /* Share modal (Import/Export) */
           #mwi-share-modal-overlay { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.6); z-index:10000020; }
-          .mwi-share-modal { background:#0f1720; color:#e6eef8; padding:12px; border-radius:8px; width:560px; max-width:92%; box-shadow:0 8px 24px rgba(0,0,0,0.6); }
-          .mwi-share-modal textarea { width:100%; height:140px; resize:vertical; margin-bottom:8px; background:#071018; color:#e6eef8; border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:8px; }
+          .mwi-share-modal { background:#0f1720; color:#e6eef8; padding:12px; border-radius:8px; width:560px; max-width:92%; box-shadow:0 8px 24px rgba(0,0,0,0.6); transform-origin: center top; transform: translateY(-20px) scale(0.9); opacity: 0; transition: transform 200ms ease, opacity 200ms ease; }
+          .mwi-share-open .mwi-share-modal { transform: translateY(0) scale(1); opacity: 1; }
+          .mwi-share-closing .mwi-share-modal { animation: mwi-pop-out 200ms ease both; }
+          .mwi-share-modal textarea { width:100%; height:140px; resize:vertical; margin-bottom:8px; background:#071018; color:#e6eef8; border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:8px; outline:none; }
           .mwi-share-modal button { margin-left:6px; padding:6px 10px; border-radius:6px; background:#222; color:#fff; border:1px solid rgba(255,255,255,0.06); cursor:pointer; }
           #mwi-settings-content { overflow-y:auto; max-height: calc(80vh - 160px); padding-right:16px; scrollbar-gutter: stable; }
           .mwi-settings-notice { font-size:12px; color:#9fb7d7; margin:6px 0 8px 0; }
@@ -1312,6 +1485,7 @@
               body { color: var(--mwi-text, inherit) !important; }
               .GamePage_headerPanel__1T_cA { background-color: var(--mwi-header-bg, unset) !important; }
           .panel, .panel-content, .Inventory_inventory__17CH2, .EquipmentPanel_equipmentPanel__29pDG, .AbilitiesPanel_abilitiesPanel__2kLc9, .HousePanel_housePanel__lpphK, .LoadoutsPanel_loadoutsPanel__Gc5VA, [class*="Inventory_inventory__"], [class*="EquipmentPanel_equipmentPanel__"], [class*="AbilitiesPanel_abilitiesPanel__"], [class*="HousePanel_housePanel__"], [class*="LoadoutsPanel_loadoutsPanel__"] { background-color: var(--mwi-panel-bg, unset) !important; }
+          :root.mwi-tabs-bg-active body > :not(#mwi-settings-overlay) .MuiTabs-root { background-color: var(--mwi-tabs-bg) !important; }
           .GamePage_navPanel__3wbAU { background-color: var(--mwi-side-panel-bg, unset) !important; }
           .MainPanel_subPanelContainer__1i-H9 { background-color: var(--mwi-subpanel-bg, unset) !important; }
            .Chat_chat__3DQkj { background-color: var(--mwi-chat-bg, unset) !important; }
@@ -1354,19 +1528,37 @@
           .mwi-colors-subsection h5 { margin:6px 0; font-size:12px; color:#e6f4ff; }
           /* Large separator specifically above Site Colors */
           #mwi-section-site-colors { border-top:2px solid rgba(255,255,255,0.12); }
+          #mwi-section-animations { border-top:2px solid rgba(255,255,255,0.12); }
+          .mwi-anim-toggle-row { display:flex; align-items:center; gap:8px; margin:8px 0 4px; }
+          .mwi-anim-toggle-row label { color:#c8dff5; font-size:12px; cursor:pointer; user-select:none; }
+          .mwi-anim-toggle-row input[type=checkbox] { width:14px; height:14px; cursor:pointer; accent-color:#44aaff; }
+          .mwi-anim-sub { margin-top:8px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.08); }
           /* Large separator specifically above Inventory */
           #mwi-section-inventory { border-top:2px solid rgba(255,255,255,0.12); }
-          /* Large separator specifically above Background (separates Themes and Background) */
-          #mwi-section-background { border-top:2px solid rgba(255,255,255,0.12); }
-          /* Large separator specifically above Hide/Organize Elements */
-          #mwi-section-hide-organize { border-top:2px solid rgba(255,255,255,0.12); }
+          /* Large separator above Customizer section */
+          #mwi-section-customizer { border-top:2px solid rgba(255,255,255,0.12); }
+          /* sub-sections inside Customizer */
+          .mwi-customizer-sub { margin-top:8px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.10); }
+          .mwi-customizer-sub h5 { margin:4px 0 6px 0; font-size:12px; background:linear-gradient(90deg,#44aaff,#ff44cc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
           /* Large separator specifically above Dev section */
           #mwi-section-dev { border-top:2px solid rgba(255,255,255,0.12); }
+          /* Organize modal */
+          #mwi-organize-dialog { transform-origin: center top; transform: translateY(-20px) scale(0.9); opacity: 0; transition: transform 200ms ease, opacity 200ms ease; }
+          .mwi-organize-open #mwi-organize-dialog { transform: translateY(0) scale(1); opacity: 1; }
+          .mwi-organize-closing #mwi-organize-dialog { animation: mwi-pop-out 200ms ease both; }
           /* Organize modal rows */
-          .mwi-org-row { display:flex; align-items:center; justify-content:space-between; padding:8px; border:1px solid rgba(255,255,255,0.04); border-radius:6px; margin-bottom:6px; background:transparent; }
+          .mwi-org-row { display:flex; align-items:center; padding:6px 8px; border:1px solid rgba(255,255,255,0.04); border-radius:6px; margin-bottom:4px; background:transparent; gap:0; }
+          .mwi-org-row-handle { flex:0 0 24px; display:flex; align-items:center; justify-content:center; }
+          .mwi-org-row-icon { flex:0 0 28px; display:flex; align-items:center; justify-content:center; }
+          .mwi-org-row-label { flex:1 1 0; font-size:14px; padding-left:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+          .mwi-org-row-right { flex:0 0 auto; display:flex; align-items:center; gap:6px; margin-left:8px; }
           .mwi-org-separator { height:8px; margin:8px 0; border-top:1px solid rgba(255,255,255,0.06); }
           .mwi-org-list { max-height: 56vh; overflow:auto; padding:6px; }
-          .mwi-org-row.dragging { opacity:0.5; }
+          .mwi-org-row.dragging { opacity:0.4; }
+          .mwi-org-row.drag-over-top { border-top: 2px solid #4caaff !important; }
+          .mwi-org-row.drag-over-bottom { border-bottom: 2px solid #4caaff !important; }
+          .mwi-drag-handle { display:flex; align-items:center; color:rgba(255,255,255,0.35); font-size:18px; line-height:1; margin-right:8px; cursor:grab; flex-shrink:0; user-select:none; padding:0 2px; }
+          .mwi-drag-handle:hover { color:rgba(255,255,255,0.7); }
           /* Skill Actions: applied only when user enables it via settings */
           /* Skill Actions: applied only when user enables it via settings (page content only) */
           :root.mwi-skill-actions-active body > :not(#mwi-settings-overlay) .SkillAction_skillAction__1esCp,
@@ -1599,6 +1791,185 @@
       const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
     }
 
+    function applyUIStyle() {
+      try {
+        const dialog = document.getElementById('mwi-settings-dialog');
+        if (dialog) {
+          if ((cfg.uiStyle || 'frosted') === 'solid') {
+            dialog.classList.add('mwi-ui-solid');
+          } else {
+            dialog.classList.remove('mwi-ui-solid');
+          }
+        }
+      } catch (e) {}
+      try {
+        const btn = document.getElementById('mwi-settings-btn');
+        if (btn) {
+          if ((cfg.btnStyle || 'frosted') === 'frosted') {
+            btn.classList.add('mwi-btn-frosted');
+            // wrap text in span for gradient text rendering
+            if (!btn.querySelector('span')) {
+              const sp = document.createElement('span'); sp.textContent = btn.textContent; btn.textContent = ''; btn.appendChild(sp);
+            }
+          } else {
+            btn.classList.remove('mwi-btn-frosted');
+            // unwrap span back to plain text
+            const sp = btn.querySelector('span');
+            if (sp) { btn.textContent = sp.textContent; }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // ── Combat animations ────────────────────────────────────────────────
+    // Squash-and-stretch "kinetic impact" + colour-burst glow on hit.
+    // Hooks the WS message stream to detect battle_updated damage events.
+
+    function tryHitAnim(type, index, dmg) {
+      try {
+        let unitEl;
+        if (type === 'monster') {
+          const area = document.querySelector('.BattlePanel_monstersArea__2dzrY');
+          if (!area || !area.children[0]) return;
+          unitEl = area.children[0].children[index];
+        } else {
+          const area = document.querySelector('.BattlePanel_playersArea__vvwlB');
+          if (!area || !area.children[0]) return;
+          unitEl = area.children[0].children[index];
+        }
+        if (!unitEl) return;
+
+        // Intensity scalar 0–1 (capped at 800 dmg for max punch)
+        const t = Math.min(1, Math.max(0, dmg / 800));
+
+        // Cancel any in-flight animations so back-to-back hits always start clean.
+        if (unitEl._mwiHitAnim)  { try { unitEl._mwiHitAnim.cancel();  } catch (_) {} }
+        if (unitEl._mwiVibeAnim) { try { unitEl._mwiVibeAnim.cancel(); } catch (_) {} }
+
+        // ── Squash & stretch ───────────────────────────────────────────
+        // More dramatic values — visibly rubber-like on heavier hits.
+        const sqX = (1 + 0.52 * t).toFixed(3);   // wide squash
+        const sqY = (1 - 0.40 * t).toFixed(3);   // flat squash
+        const stX = (1 - 0.18 * t).toFixed(3);   // tall stretch narrow
+        const stY = (1 + 0.30 * t).toFixed(3);   // tall stretch
+        unitEl._mwiHitAnim = unitEl.animate(
+          [
+            { transform: 'scale(1, 1)',            offset: 0.00 },
+            { transform: `scale(${sqX}, ${sqY})`, offset: 0.09 },
+            { transform: `scale(${stX}, ${stY})`, offset: 0.26 },
+            { transform: 'scale(1.04, 0.97)',      offset: 0.48 },
+            { transform: 'scale(0.98, 1.03)',      offset: 0.65 },
+            { transform: 'scale(1.01, 0.99)',      offset: 0.80 },
+            { transform: 'scale(1, 1)',            offset: 1.00 }
+          ],
+          {
+            duration: 460 + t * 200,
+            easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)',
+            fill: 'none'
+          }
+        );
+        unitEl._mwiHitAnim.onfinish = () => { unitEl._mwiHitAnim = null; };
+
+        // ── Lateral vibration ──────────────────────────────────────────
+        // Fast left-right rattle overlaid on the squash. Amplitude and rattle
+        // count both scale with hit intensity so small hits get a tiny nudge
+        // and big hits get a proper multi-cycle shudder.
+        const vx = (3 + t * 9).toFixed(1);   // peak lateral offset px
+        const vy = (1 + t * 3).toFixed(1);   // slight vertical component
+        const vibeDur = 60 + t * 30;          // ms per half-cycle (faster = more frantic)
+        const cycles  = Math.round(2 + t * 3); // number of left-right pairs
+        const vibeFrames = [{ transform: 'translate(0,0)', offset: 0 }];
+        for (let c = 0; c < cycles; c++) {
+          const pct = (c + 0.5) / cycles;
+          const decay = (1 - pct * 0.7).toFixed(3); // amplitude decays toward end
+          const sign  = c % 2 === 0 ? 1 : -1;
+          vibeFrames.push({
+            transform: `translate(${(sign * vx * decay).toFixed(2)}px, ${(-vy * decay).toFixed(2)}px)`,
+            offset: parseFloat(((c + 0.5) / cycles * 0.55).toFixed(3))
+          });
+        }
+        vibeFrames.push({ transform: 'translate(0,0)', offset: 1.0 });
+        unitEl._mwiVibeAnim = unitEl.animate(vibeFrames, {
+          duration: vibeDur * cycles * 2 + 80,
+          easing: 'ease-in-out',
+          fill: 'none'
+        });
+        unitEl._mwiVibeAnim.onfinish = () => { unitEl._mwiVibeAnim = null; };
+
+        // ── Colour-burst glow ──────────────────────────────────────────
+        const iconEl = unitEl.querySelector(
+          '.CombatUnit_monsterIcon__2g3AZ, .FullAvatar_fullAvatar__3RB2h'
+        ) || unitEl;
+        if (iconEl._mwiGlowAnim) { try { iconEl._mwiGlowAnim.cancel(); } catch (_) {} }
+        const glowPx  = (7 + t * 18).toFixed(1);
+        const glowClr = dmg > 0
+          ? `rgba(255,${Math.round(180 - t * 150)},${Math.round(40 - t * 40)},0.92)`
+          : 'rgba(80,255,120,0.80)';
+        iconEl._mwiGlowAnim = iconEl.animate(
+          [
+            { filter: `drop-shadow(0 0 ${glowPx}px ${glowClr}) brightness(${(1.35 + t * 0.55).toFixed(2)})`,        offset: 0.00 },
+            { filter: `drop-shadow(0 0 ${(glowPx * 0.65).toFixed(1)}px ${glowClr}) brightness(1.12)`,                offset: 0.30 },
+            { filter: `drop-shadow(0 0 ${(glowPx * 0.2).toFixed(1)}px ${glowClr}) brightness(1.02)`,                 offset: 0.65 },
+            { filter: 'none',                                                                                         offset: 1.00 }
+          ],
+          {
+            duration: 520 + t * 200,
+            easing: 'ease-out',
+            fill: 'none'
+          }
+        );
+        iconEl._mwiGlowAnim.onfinish = () => { iconEl._mwiGlowAnim = null; };
+      } catch (e) {}
+    }
+
+    function hookCombatWS() {
+      if (window._mwiCombatWSHooked) return;
+      window._mwiCombatWSHooked = true;
+      try {
+        const dp = Object.getOwnPropertyDescriptor(MessageEvent.prototype, 'data');
+        if (!dp) return;
+        const oriGet = dp.get;
+        let monsHP = [], monsCtr = [], plrsHP = [], plrsCtr = [];
+        dp.get = function () {
+          const socket = this.currentTarget;
+          if (!(socket instanceof WebSocket)) return oriGet.call(this);
+          if (!socket.url.includes('milkywayidle.com/ws')) return oriGet.call(this);
+          const msg = oriGet.call(this);
+          // Anti-loop: cache on instance so the prototype getter isn't called again
+          Object.defineProperty(this, 'data', { value: msg });
+          try {
+            if (cfg.combatAnim !== false) {
+              const obj = JSON.parse(msg);
+              if (obj && obj.type === 'new_battle') {
+                monsHP  = obj.monsters.map(m => m.currentHitpoints);
+                monsCtr = obj.monsters.map(m => m.damageSplatCounter);
+                plrsHP  = obj.players.map(p => p.currentHitpoints);
+                plrsCtr = obj.players.map(p => p.damageSplatCounter);
+              } else if (obj && obj.type === 'battle_updated' && monsHP.length) {
+                const { mMap, pMap } = obj;
+                Object.keys(mMap || {}).forEach(i => {
+                  const m = mMap[i]; if (!m) return;
+                  if ((monsCtr[i] ?? -1) < m.dmgCounter) {
+                    tryHitAnim('monster', +i, Math.max(0, monsHP[i] - m.cHP));
+                  }
+                  monsHP[i] = m.cHP; monsCtr[i] = m.dmgCounter;
+                });
+                Object.keys(pMap || {}).forEach(i => {
+                  const p = pMap[i]; if (!p) return;
+                  if ((plrsCtr[i] ?? -1) < p.dmgCounter) {
+                    tryHitAnim('player', +i, Math.max(0, plrsHP[i] - p.cHP));
+                  }
+                  plrsHP[i] = p.cHP; plrsCtr[i] = p.dmgCounter;
+                });
+              }
+            }
+          } catch (e) {}
+          return msg;
+        };
+        Object.defineProperty(MessageEvent.prototype, 'data', dp);
+      } catch (e) { log('hookCombatWS error', e); }
+    }
+
     function createSettingsModal() {
       // If an older overlay exists (from a previous script version), remove it
       // so we recreate the modal with current event handlers.
@@ -1619,12 +1990,23 @@
       }
       // close modal when clicking outside the dialog
       overlay.addEventListener('click', (ev) => { try { if (ev.target === overlay) animateClose(); } catch (e) {} });
+      // mouse-tracked glow on dialog (frosted mode only)
+      overlay.addEventListener('mousemove', (ev) => {
+        try {
+          if ((cfg.uiStyle || 'frosted') !== 'frosted') return;
+          const rect = dialog.getBoundingClientRect();
+          const x = ((ev.clientX - rect.left) / rect.width * 100).toFixed(1) + '%';
+          const y = ((ev.clientY - rect.top) / rect.height * 100).toFixed(1) + '%';
+          dialog.style.setProperty('--glow-x', x);
+          dialog.style.setProperty('--glow-y', y);
+        } catch (e) {}
+      });
 
       const dialog = document.createElement('div'); dialog.id = 'mwi-settings-dialog';
-      const closeBtn = document.createElement('button'); closeBtn.id = 'mwi-settings-close'; closeBtn.textContent = '✕';
+      const closeBtn = document.createElement('button'); closeBtn.id = 'mwi-settings-close'; closeBtn.textContent = '\u2715';
       closeBtn.addEventListener('click', () => animateClose());
 
-      const title = document.createElement('h3'); title.textContent = 'MWI Customizer Settings';
+      const title = document.createElement('h3'); title.textContent = 'MWI Customizer Settings'; title.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; title.style.webkitBackgroundClip = 'text'; title.style.webkitTextFillColor = 'transparent'; title.style.backgroundClip = 'text';
       const notice = document.createElement('div'); notice.className = 'mwi-settings-notice'; notice.textContent = 'Refresh the page for changes to apply.';
       const content = document.createElement('div'); content.id = 'mwi-settings-content'; content.style.marginTop = '8px';
 
@@ -1642,11 +2024,11 @@
         } catch (e) {}
       }
 
-      // Themes removed — no preset UI
+      // Themes removed 窶・no preset UI
 
       // Colors section (sitewide)
       const colorsSection = document.createElement('div'); colorsSection.className = 'mwi-settings-section'; colorsSection.id = 'mwi-section-site-colors';
-      const colorsTitle = document.createElement('h4'); colorsTitle.textContent = 'Site Colors';
+      const colorsTitle = document.createElement('h4'); colorsTitle.textContent = 'Site Colors'; colorsTitle.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; colorsTitle.style.webkitBackgroundClip = 'text'; colorsTitle.style.webkitTextFillColor = 'transparent'; colorsTitle.style.backgroundClip = 'text';
       colorsSection.appendChild(colorsTitle);
       // Remove the large separator that appears below Inventory (beneath Glow)
       // by clearing this section's top border.
@@ -1655,13 +2037,33 @@
       const colorsList = document.createElement('div'); colorsList.style.marginTop = '6px';
 
       // Background section (custom image overlay)
-      const bgSection = document.createElement('div'); bgSection.className = 'mwi-settings-section'; bgSection.id = 'mwi-section-background';
-      const bgTitle = document.createElement('h4'); bgTitle.textContent = 'Background'; bgSection.appendChild(bgTitle);
+      const bgSection = document.createElement('div'); bgSection.className = 'mwi-customizer-sub'; bgSection.id = 'mwi-section-background';
+      const bgTitle = document.createElement('h5'); bgTitle.textContent = 'Background'; bgSection.appendChild(bgTitle);
       const bgList = document.createElement('div'); bgList.style.marginTop = '6px';
 
-      // Themes selector will be inserted above the Background section (if enabled)
-      const themesSection = document.createElement('div'); themesSection.className = 'mwi-settings-section'; themesSection.id = 'mwi-section-themes';
-      const themesTitle = document.createElement('h4'); themesTitle.textContent = 'Themes'; themesSection.appendChild(themesTitle);
+      // MWI Customizer sub-section (UI style + button style)
+      const mwiCfgSection = document.createElement('div'); mwiCfgSection.className = 'mwi-customizer-sub'; mwiCfgSection.id = 'mwi-section-mwi-cfg';
+      const mwiCfgTitle = document.createElement('h5'); mwiCfgTitle.textContent = 'MWI Customizer'; mwiCfgSection.appendChild(mwiCfgTitle);
+      try {
+        // Settings UI dropdown
+        const uiRow = document.createElement('div'); uiRow.className = 'mwi-settings-row';
+        const uiLabel = document.createElement('label'); uiLabel.textContent = 'Settings UI';
+        const uiSelect = document.createElement('select');
+        [['frosted','Frosted'],['solid','Solid']].forEach(([v,t]) => { const o = document.createElement('option'); o.value=v; o.textContent=t; if ((cfg.uiStyle||'frosted')===v) o.selected=true; uiSelect.appendChild(o); });
+        uiSelect.addEventListener('change', () => { cfg.uiStyle = uiSelect.value; saveSettings(); applyUIStyle(); });
+        uiRow.appendChild(uiLabel); uiRow.appendChild(uiSelect); mwiCfgSection.appendChild(uiRow);
+        // Settings Button dropdown
+        const btnRow = document.createElement('div'); btnRow.className = 'mwi-settings-row';
+        const btnLabel = document.createElement('label'); btnLabel.textContent = 'Settings Button';
+        const btnSelect = document.createElement('select');
+        [['frosted','Frosted'],['solid','Solid']].forEach(([v,t]) => { const o = document.createElement('option'); o.value=v; o.textContent=t; if ((cfg.btnStyle||'frosted')===v) o.selected=true; btnSelect.appendChild(o); });
+        btnSelect.addEventListener('change', () => { cfg.btnStyle = btnSelect.value; saveSettings(); applyUIStyle(); });
+        btnRow.appendChild(btnLabel); btnRow.appendChild(btnSelect); mwiCfgSection.appendChild(btnRow);
+      } catch (e) {}
+
+      // Themes selector
+      const themesSection = document.createElement('div'); themesSection.className = 'mwi-customizer-sub'; themesSection.style.borderTop = 'none'; themesSection.style.paddingTop = '2px'; themesSection.id = 'mwi-section-themes';
+      const themesTitle = document.createElement('h5'); themesTitle.textContent = 'Themes'; themesSection.appendChild(themesTitle);
       const themesList = document.createElement('div'); themesList.style.marginTop = '6px';
       try {
         const themeRow = document.createElement('div'); themeRow.className = 'mwi-settings-row';
@@ -1697,10 +2099,10 @@
         shareRow.style.alignItems = 'center';
         const exportBtn = document.createElement('button'); exportBtn.type = 'button'; exportBtn.textContent = 'Export';
         // Export: primary green
-        exportBtn.style.background = '#1f7d3d'; exportBtn.style.color = '#fff'; exportBtn.style.border = '0'; exportBtn.style.padding = '6px 10px'; exportBtn.style.borderRadius = '6px'; exportBtn.style.marginRight = '8px';
+        exportBtn.style.background = '#1f7d3d'; exportBtn.style.color = '#fff'; exportBtn.style.border = '0'; exportBtn.style.padding = '6px 10px'; exportBtn.style.borderRadius = '6px'; exportBtn.style.marginRight = '8px'; exportBtn.classList.add('mwi-push-btn');
         const importBtn = document.createElement('button'); importBtn.type = 'button'; importBtn.textContent = 'Import';
         // Import: primary blue
-        importBtn.style.background = '#1f4a8a'; importBtn.style.color = '#fff'; importBtn.style.border = '0'; importBtn.style.padding = '6px 10px'; importBtn.style.borderRadius = '6px'; importBtn.style.marginRight = '8px';
+        importBtn.style.background = '#1f4a8a'; importBtn.style.color = '#fff'; importBtn.style.border = '0'; importBtn.style.padding = '6px 10px'; importBtn.style.borderRadius = '6px'; importBtn.style.marginRight = '8px'; importBtn.classList.add('mwi-push-btn');
         // hidden textarea to show the exported string or accept import
         // Build a reusable modal for Import/Export strings
         function openShareModal(mode, text) {
@@ -1716,11 +2118,11 @@
             modal.appendChild(ta);
             const row = document.createElement('div'); row.style.display = 'flex'; row.style.justifyContent = 'flex-end'; row.style.gap = '8px';
             if (mode === 'export') {
-              const copyBtn = document.createElement('button'); copyBtn.type = 'button'; copyBtn.textContent = 'Copy';
+              const copyBtn = document.createElement('button'); copyBtn.type = 'button'; copyBtn.textContent = 'Copy'; copyBtn.classList.add('mwi-push-btn');
               copyBtn.addEventListener('click', async () => { try { await navigator.clipboard.writeText(ta.value); copyBtn.textContent = 'Copied'; setTimeout(() => copyBtn.textContent = 'Copy', 1200); } catch (e) { alert('Copy failed'); } });
               row.appendChild(copyBtn);
             } else {
-              const applyBtn = document.createElement('button'); applyBtn.type = 'button'; applyBtn.textContent = 'Apply';
+              const applyBtn = document.createElement('button'); applyBtn.type = 'button'; applyBtn.textContent = 'Apply'; applyBtn.classList.add('mwi-push-btn');
               applyBtn.addEventListener('click', () => {
                 try {
                   const val = (ta.value || '').trim(); if (!val) { alert('Paste an import string into the box then click Apply.'); return; }
@@ -1732,6 +2134,7 @@
                   const allowed = Object.keys(cfg).filter(k => !DEV_KEYS.includes(k));
                   for (const k of Object.keys(obj)) if (allowed.includes(k)) cfg[k] = obj[k];
                   saveSettings(); applySiteColors();
+                  try { applyHideOrganize(); } catch (e) {}
                   try { if (typeof renderColorsEditor === 'function') renderColorsEditor(colorsList); } catch (e) {}
                   // Show confirmation prompting the user to refresh (like Reset flow)
                   try {
@@ -1769,12 +2172,18 @@
               });
               row.appendChild(applyBtn);
             }
-            const closeBtn = document.createElement('button'); closeBtn.type = 'button'; closeBtn.textContent = 'Close'; closeBtn.addEventListener('click', () => over.remove()); row.appendChild(closeBtn);
+            function closeShareModal() {
+              over.classList.remove('mwi-share-open');
+              over.classList.add('mwi-share-closing');
+              setTimeout(() => { try { over.remove(); } catch (e) {} }, 200);
+            }
+            const closeBtn = document.createElement('button'); closeBtn.type = 'button'; closeBtn.textContent = 'Close'; closeBtn.classList.add('mwi-push-btn'); closeBtn.addEventListener('click', () => closeShareModal()); row.appendChild(closeBtn);
             modal.appendChild(row);
             over.appendChild(modal);
             // clicking outside the share modal closes it (but won't affect main modal)
-            over.addEventListener('click', (ev) => { try { if (ev.target === over) over.remove(); } catch (e) {} });
+            over.addEventListener('click', (ev) => { try { if (ev.target === over) closeShareModal(); } catch (e) {} });
             document.body.appendChild(over);
+            requestAnimationFrame(() => requestAnimationFrame(() => over.classList.add('mwi-share-open')));
             ta.focus(); if (mode === 'export') ta.select();
           } catch (e) { log('openShareModal error', e); }
         }
@@ -1845,15 +2254,15 @@
       bgSection.appendChild(bgList);
 
       // Hide/Organize Elements section (button opens organize modal)
-      const hideSection = document.createElement('div'); hideSection.className = 'mwi-settings-section'; hideSection.id = 'mwi-section-hide-organize';
-      const hideTitle = document.createElement('h4'); hideTitle.textContent = 'Hide Elements'; hideSection.appendChild(hideTitle);
+      const hideSection = document.createElement('div'); hideSection.className = 'mwi-customizer-sub'; hideSection.id = 'mwi-section-hide-organize';
+      const hideTitle = document.createElement('h5'); hideTitle.textContent = 'Customize Left Side Panel'; hideSection.appendChild(hideTitle);
       const hideList = document.createElement('div'); hideList.style.marginTop = '6px';
       try {
         const openBtnRow = document.createElement('div'); openBtnRow.className = 'mwi-settings-row';
         const openLabel = document.createElement('label'); openLabel.textContent = 'Manage elements'; openLabel.style.flex = '1';
         const openBtn = document.createElement('button'); openBtn.type = 'button'; openBtn.textContent = 'Manage';
         // Manage: neutral gray
-        openBtn.style.background = '#6b7280'; openBtn.style.color = '#fff'; openBtn.style.border = '0'; openBtn.style.padding = '6px 10px'; openBtn.style.borderRadius = '6px'; openBtn.style.marginRight = '8px';
+        openBtn.style.background = '#6b7280'; openBtn.style.color = '#fff'; openBtn.style.border = '0'; openBtn.style.padding = '6px 10px'; openBtn.style.borderRadius = '6px'; openBtn.style.marginRight = '8px'; openBtn.classList.add('mwi-push-btn');
         openBtn.addEventListener('click', () => { try { openOrganizeModal(); } catch (e) { log('open organize error', e); } });
         openBtnRow.appendChild(openLabel); openBtnRow.appendChild(openBtn); hideList.appendChild(openBtnRow);
       } catch (e) {}
@@ -1864,7 +2273,7 @@
 
       // Inventory section
       const invSection = document.createElement('div'); invSection.className = 'mwi-settings-section'; invSection.id = 'mwi-section-inventory';
-      const invTitle = document.createElement('h4'); invTitle.textContent = 'Inventory Color Coding';
+      const invTitle = document.createElement('h4'); invTitle.textContent = 'Inventory Color Coding'; invTitle.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; invTitle.style.webkitBackgroundClip = 'text'; invTitle.style.webkitTextFillColor = 'transparent'; invTitle.style.backgroundClip = 'text';
       invSection.appendChild(invTitle);
 
       // Inventory setting: color mode dropdown
@@ -1895,9 +2304,33 @@
       try { allAlpha.value = String(Math.round((cfg.allAlpha !== undefined ? cfg.allAlpha : 1) * 100)); } catch (e) { allAlpha.value = '100'; }
       allAlpha.addEventListener('input', () => { try { cfg.allAlpha = Number(allAlpha.value)/100; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) {} });
       allRow.appendChild(allAlpha);
+      // single clipboard shared across all color rows (site colors, all color, quantity tiers)
+      let sharedColorClipboard = null;
+      // copy button
+      const allCopy = document.createElement('button'); allCopy.type = 'button'; allCopy.title = 'Copy color & opacity'; allCopy.textContent = '\u2398'; allCopy.classList.add('mwi-push-btn');
+      allCopy.style.marginLeft = '8px'; allCopy.style.width = '26px'; allCopy.style.height = '22px'; allCopy.style.borderRadius = '4px'; allCopy.style.border = '1px solid rgba(255,255,255,0.06)'; allCopy.style.background = 'transparent'; allCopy.style.color = '#aaa'; allCopy.style.fontSize = '14px';
+      allCopy.addEventListener('click', () => {
+        try {
+          sharedColorClipboard = { color: allInput.value, alpha: Number(allAlpha.value) };
+          document.querySelectorAll('#mwi-settings-dialog .mwi-paste-btn').forEach(b => { b.style.color = '#ff44cc'; setTimeout(() => { b.style.color = '#aaa'; }, 600); });
+          allCopy.style.color = '#ff44cc'; setTimeout(() => { allCopy.style.color = '#aaa'; }, 600);
+        } catch(e) {}
+      });
+      // paste button
+      const allPaste = document.createElement('button'); allPaste.type = 'button'; allPaste.title = 'Paste color & opacity'; allPaste.textContent = '⏶'; allPaste.classList.add('mwi-push-btn', 'mwi-paste-btn');
+      allPaste.style.marginLeft = '2px'; allPaste.style.width = '26px'; allPaste.style.height = '22px'; allPaste.style.borderRadius = '4px'; allPaste.style.border = '1px solid rgba(255,255,255,0.06)'; allPaste.style.background = 'transparent'; allPaste.style.color = '#aaa'; allPaste.style.fontSize = '12px';
+      allPaste.addEventListener('click', () => {
+        try {
+          if (!sharedColorClipboard) return;
+          cfg.allColor = sharedColorClipboard.color; cfg.allAlpha = sharedColorClipboard.alpha / 100;
+          allInput.value = sharedColorClipboard.color; allAlpha.value = String(sharedColorClipboard.alpha);
+          saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan();
+          allPaste.style.color = '#44aaff'; setTimeout(() => { allPaste.style.color = '#aaa'; }, 600);
+        } catch(e) {}
+      });
       // reset button
-      const allReset = document.createElement('button'); allReset.type = 'button'; allReset.title = 'Reset All color to default'; allReset.textContent = '↺';
-      allReset.style.marginLeft = '8px'; allReset.style.width = '26px'; allReset.style.height = '22px'; allReset.style.borderRadius = '4px'; allReset.style.border = '1px solid rgba(255,255,255,0.06)'; allReset.style.background = 'transparent'; allReset.style.color = '#fff'; allReset.style.cursor = 'pointer';
+      const allReset = document.createElement('button'); allReset.type = 'button'; allReset.title = 'Reset All color to default'; allReset.textContent = '↺'; allReset.classList.add('mwi-push-btn');
+      allReset.style.marginLeft = '2px'; allReset.style.width = '26px'; allReset.style.height = '22px'; allReset.style.borderRadius = '4px'; allReset.style.border = '1px solid rgba(255,255,255,0.06)'; allReset.style.background = 'transparent'; allReset.style.color = '#fff';
       allReset.addEventListener('click', () => {
         try {
           if (DEFAULT_CFG && DEFAULT_CFG.allColor) cfg.allColor = DEFAULT_CFG.allColor; else delete cfg.allColor;
@@ -1907,8 +2340,8 @@
           saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan();
         } catch (e) { log('reset all color error', e); }
       });
-      allRow.appendChild(allReset);
-      // do not append directly to invSection — will be inserted into the category wrapper
+      allRow.appendChild(allCopy); allRow.appendChild(allPaste); allRow.appendChild(allReset);
+      // do not append directly to invSection 窶・will be inserted into the category wrapper
       // (so All replaces Quantity in the same area)
 
       // Inventory setting: toggle inner curved border (disable the bright inset border)
@@ -1959,9 +2392,32 @@
             alpha.addEventListener('input', () => {
               try { cfg.collectionQuantityTiers[i].alpha = Number(alpha.value)/100; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) { log('quantity alpha set error', e); }
             });
-            // reset button for this quantity tier
-            const resetBtn = document.createElement('button'); resetBtn.type = 'button'; resetBtn.title = 'Reset this tier to default'; resetBtn.textContent = '↺';
-            resetBtn.style.marginLeft = '8px'; resetBtn.style.width = '26px'; resetBtn.style.height = '22px'; resetBtn.style.borderRadius = '4px'; resetBtn.style.border = '1px solid rgba(255,255,255,0.06)'; resetBtn.style.background = 'transparent'; resetBtn.style.color = '#fff'; resetBtn.style.cursor = 'pointer';
+            // copy button
+            const copyBtn = document.createElement('button'); copyBtn.type = 'button'; copyBtn.title = 'Copy color & opacity'; copyBtn.textContent = '\u2398'; copyBtn.classList.add('mwi-push-btn');
+            copyBtn.style.marginLeft = '8px'; copyBtn.style.width = '26px'; copyBtn.style.height = '22px'; copyBtn.style.borderRadius = '4px'; copyBtn.style.border = '1px solid rgba(255,255,255,0.06)'; copyBtn.style.background = 'transparent'; copyBtn.style.color = '#aaa'; copyBtn.style.fontSize = '14px';
+            copyBtn.addEventListener('click', () => {
+              try {
+                sharedColorClipboard = { color: colorInput.value, alpha: Number(alpha.value) };
+                document.querySelectorAll('#mwi-settings-dialog .mwi-paste-btn').forEach(b => { b.style.color = '#ff44cc'; setTimeout(() => { b.style.color = '#aaa'; }, 600); });
+                copyBtn.style.color = '#ff44cc'; setTimeout(() => { copyBtn.style.color = '#aaa'; }, 600);
+              } catch(e) {}
+            });
+            // paste button
+            const pasteBtn = document.createElement('button'); pasteBtn.type = 'button'; pasteBtn.title = 'Paste color & opacity'; pasteBtn.textContent = '⏶'; pasteBtn.classList.add('mwi-push-btn', 'mwi-paste-btn');
+            pasteBtn.style.marginLeft = '2px'; pasteBtn.style.width = '26px'; pasteBtn.style.height = '22px'; pasteBtn.style.borderRadius = '4px'; pasteBtn.style.border = '1px solid rgba(255,255,255,0.06)'; pasteBtn.style.background = 'transparent'; pasteBtn.style.color = '#aaa'; pasteBtn.style.fontSize = '12px';
+            pasteBtn.addEventListener('click', () => {
+              try {
+                if (!sharedColorClipboard) return;
+                cfg.collectionQuantityTiers[i].color = sharedColorClipboard.color;
+                cfg.collectionQuantityTiers[i].alpha = sharedColorClipboard.alpha / 100;
+                colorInput.value = sharedColorClipboard.color; alpha.value = String(sharedColorClipboard.alpha);
+                saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan();
+                pasteBtn.style.color = '#44aaff'; setTimeout(() => { pasteBtn.style.color = '#aaa'; }, 600);
+              } catch(e) {}
+            });
+            // reset button
+            const resetBtn = document.createElement('button'); resetBtn.type = 'button'; resetBtn.title = 'Reset this tier to default'; resetBtn.textContent = '↺'; resetBtn.classList.add('mwi-push-btn');
+            resetBtn.style.marginLeft = '2px'; resetBtn.style.width = '26px'; resetBtn.style.height = '22px'; resetBtn.style.borderRadius = '4px'; resetBtn.style.border = '1px solid rgba(255,255,255,0.06)'; resetBtn.style.background = 'transparent'; resetBtn.style.color = '#fff';
             resetBtn.addEventListener('click', () => {
               try {
                 if (DEFAULT_CFG && DEFAULT_CFG.collectionQuantityTiers && DEFAULT_CFG.collectionQuantityTiers[i]) {
@@ -1975,7 +2431,7 @@
                 saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan();
               } catch (e) { log('reset quantity tier error', e); }
             });
-            row.appendChild(alpha); row.appendChild(resetBtn);
+            row.appendChild(alpha); row.appendChild(copyBtn); row.appendChild(pasteBtn); row.appendChild(resetBtn);
             container.appendChild(row);
           } catch (e) {}
         }
@@ -2006,7 +2462,7 @@
 
       // Dev section (preserved keys / debug helpers)
       const devSection = document.createElement('div'); devSection.className = 'mwi-settings-section'; devSection.id = 'mwi-section-dev';
-      const devTitle = document.createElement('h4'); devTitle.textContent = 'Dev';
+      const devTitle = document.createElement('h4'); devTitle.textContent = 'Dev'; devTitle.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; devTitle.style.webkitBackgroundClip = 'text'; devTitle.style.webkitTextFillColor = 'transparent'; devTitle.style.backgroundClip = 'text';
       devSection.appendChild(devTitle);
       const devList = document.createElement('div'); devList.style.marginTop = '6px';
 
@@ -2087,9 +2543,13 @@
           ]},
           { title: 'Tabs', fields: [
             { key: 'buttonBg', label: 'Tabs' , hasAlpha: true, alphaKey: 'buttonBgAlpha', defaultAlpha: 1},
+            { key: 'tabsBg', label: 'Tabs Background', hasAlpha: true, alphaKey: 'tabsBgAlpha', defaultAlpha: 1},
             { key: 'accent', label: 'Text Color' , hasAlpha: true, alphaKey: 'accentAlpha', defaultAlpha: 1}
           ]}
         ];
+
+        // clipboard for copy/paste between color rows
+        // uses sharedColorClipboard from outer scope
 
         function buildRow(f) {
           try {
@@ -2115,8 +2575,39 @@
               });
               const isActive = sc[f.key] && String(sc[f.key]).trim() !== '';
               if (!isActive) { alpha.disabled = true; alpha.classList.add('mwi-range-disabled'); colorInput.classList.add('mwi-inactive'); }
-              const resetBtn = document.createElement('button'); resetBtn.type = 'button'; resetBtn.title = 'Reset this setting to default'; resetBtn.textContent = '↺';
-              resetBtn.style.marginLeft = '8px'; resetBtn.style.width = '26px'; resetBtn.style.height = '22px'; resetBtn.style.borderRadius = '4px'; resetBtn.style.border = '1px solid rgba(255,255,255,0.06)'; resetBtn.style.background = 'transparent'; resetBtn.style.color = '#fff'; resetBtn.style.cursor = 'pointer';
+
+              // Copy button
+              const copyBtn = document.createElement('button'); copyBtn.type = 'button'; copyBtn.title = 'Copy color & opacity'; copyBtn.textContent = '\u2398'; copyBtn.classList.add('mwi-push-btn');
+              copyBtn.style.marginLeft = '8px'; copyBtn.style.width = '26px'; copyBtn.style.height = '22px'; copyBtn.style.borderRadius = '4px'; copyBtn.style.border = '1px solid rgba(255,255,255,0.06)'; copyBtn.style.background = 'transparent'; copyBtn.style.color = '#aaa'; copyBtn.style.fontSize = '14px';
+              copyBtn.addEventListener('click', () => {
+                try {
+                  sharedColorClipboard = { color: colorInput.value, alpha: Number(alpha.value) };
+                  // Flash all paste buttons to indicate clipboard is ready
+                  document.querySelectorAll('#mwi-settings-dialog .mwi-paste-btn').forEach(b => { b.style.color = '#ff44cc'; setTimeout(() => { b.style.color = '#aaa'; }, 600); });
+                  copyBtn.style.color = '#ff44cc'; setTimeout(() => { copyBtn.style.color = '#aaa'; }, 600);
+                } catch(e) {}
+              });
+
+              // Paste button
+              const pasteBtn = document.createElement('button'); pasteBtn.type = 'button'; pasteBtn.title = 'Paste color & opacity'; pasteBtn.textContent = '⏶'; pasteBtn.className = 'mwi-paste-btn mwi-push-btn';
+              pasteBtn.style.marginLeft = '2px'; pasteBtn.style.width = '26px'; pasteBtn.style.height = '22px'; pasteBtn.style.borderRadius = '4px'; pasteBtn.style.border = '1px solid rgba(255,255,255,0.06)'; pasteBtn.style.background = 'transparent'; pasteBtn.style.color = '#aaa'; pasteBtn.style.fontSize = '12px';
+              pasteBtn.addEventListener('click', () => {
+                try {
+                  if (!sharedColorClipboard) return;
+                  cfg.siteColors = cfg.siteColors || {};
+                  cfg.siteColors[f.key] = sharedColorClipboard.color;
+                  cfg.siteColors[f.alphaKey] = sharedColorClipboard.alpha / 100;
+                  if (f.key === 'accent') cfg.siteColors.text = sharedColorClipboard.color;
+                  colorInput.value = sharedColorClipboard.color;
+                  alpha.value = String(sharedColorClipboard.alpha);
+                  colorInput.classList.remove('mwi-inactive'); alpha.disabled = false; alpha.classList.remove('mwi-range-disabled');
+                  applySiteColors(); saveSettings();
+                  pasteBtn.style.color = '#44aaff'; setTimeout(() => { pasteBtn.style.color = '#aaa'; }, 600);
+                } catch(e) {}
+              });
+
+              const resetBtn = document.createElement('button'); resetBtn.type = 'button'; resetBtn.title = 'Reset this setting to default'; resetBtn.textContent = '↺'; resetBtn.classList.add('mwi-push-btn');
+              resetBtn.style.marginLeft = '2px'; resetBtn.style.width = '26px'; resetBtn.style.height = '22px'; resetBtn.style.borderRadius = '4px'; resetBtn.style.border = '1px solid rgba(255,255,255,0.06)'; resetBtn.style.background = 'transparent'; resetBtn.style.color = '#fff';
               resetBtn.addEventListener('click', () => {
                 try {
                   cfg.siteColors = cfg.siteColors || {};
@@ -2130,7 +2621,7 @@
                   applySiteColors(); saveSettings();
                 } catch (e) { log('reset single site color error', e); }
               });
-              row.appendChild(alpha); row.appendChild(resetBtn);
+              row.appendChild(alpha); row.appendChild(copyBtn); row.appendChild(pasteBtn); row.appendChild(resetBtn);
             }
             return row;
           } catch (e) { return null; }
@@ -2140,7 +2631,7 @@
           const g = groups[i];
           try {
             const sub = document.createElement('div'); sub.className = 'mwi-colors-subsection';
-            const h = document.createElement('h5'); h.textContent = g.title; sub.appendChild(h);
+            const h = document.createElement('h5'); h.textContent = g.title; h.style.background = 'linear-gradient(90deg, #44aaff, #ff44cc)'; h.style.webkitBackgroundClip = 'text'; h.style.webkitTextFillColor = 'transparent'; h.style.backgroundClip = 'text'; sub.appendChild(h);
             // Remove the small separator for the first subsection (Header) so
             // it doesn't display a thin line directly beneath the 'Site Colors' title.
             if (i === 0) {
@@ -2160,11 +2651,36 @@
       try {
         // ensure the colors list is part of the Colors section and render it
         try { colorsSection.appendChild(colorsList); renderColorsEditor(colorsList); } catch (e) {}
-        // Themes, Background (custom image), inventory editors, then Colors
-        try { content.appendChild(themesSection); } catch (e) {}
-        try { content.appendChild(bgSection); } catch (e) {}
-        // ensure Hide/Organize section is included (button opens organize modal)
-        try { content.appendChild(hideSection); } catch (e) {}
+        // Customizer section wraps Themes, Background, Hide/Organize
+        try {
+          const customizerSection = document.createElement('div'); customizerSection.className = 'mwi-settings-section'; customizerSection.id = 'mwi-section-customizer';
+          const customizerTitle = document.createElement('h4'); customizerTitle.textContent = 'Customizer'; customizerTitle.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; customizerTitle.style.webkitBackgroundClip = 'text'; customizerTitle.style.webkitTextFillColor = 'transparent'; customizerTitle.style.backgroundClip = 'text';
+          customizerSection.appendChild(customizerTitle);
+          customizerSection.appendChild(themesSection);
+          customizerSection.appendChild(mwiCfgSection);
+          customizerSection.appendChild(bgSection);
+          customizerSection.appendChild(hideSection);
+          content.appendChild(customizerSection);
+        } catch (e) {}
+        // Animations section
+        try {
+          const animSection = document.createElement('div'); animSection.className = 'mwi-settings-section'; animSection.id = 'mwi-section-animations';
+          const animTitle = document.createElement('h4'); animTitle.textContent = 'Animations'; animTitle.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; animTitle.style.webkitBackgroundClip = 'text'; animTitle.style.webkitTextFillColor = 'transparent'; animTitle.style.backgroundClip = 'text';
+          animSection.appendChild(animTitle);
+          // Combat animations sub-section
+          try {
+            const combatSub = document.createElement('div'); combatSub.className = 'mwi-anim-sub';
+            const combatSubTitle = document.createElement('h5'); combatSubTitle.textContent = 'Combat'; combatSubTitle.style.cssText = 'font-size:12px;margin:0 0 6px;background:linear-gradient(90deg,#44aaff,#ff44cc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;';
+            combatSub.appendChild(combatSubTitle);
+            const combatRow = document.createElement('div'); combatRow.className = 'mwi-anim-toggle-row';
+            const combatChk = document.createElement('input'); combatChk.type = 'checkbox'; combatChk.id = 'mwi-anim-combat-chk'; combatChk.checked = (cfg.combatAnim !== false);
+            const combatLbl = document.createElement('label'); combatLbl.htmlFor = 'mwi-anim-combat-chk'; combatLbl.textContent = 'Hit impact - Inspired by MWI-Hit-Tracker';
+            combatChk.addEventListener('change', () => { cfg.combatAnim = combatChk.checked; saveSettings(); });
+            combatRow.appendChild(combatChk); combatRow.appendChild(combatLbl); combatSub.appendChild(combatRow);
+            animSection.appendChild(combatSub);
+          } catch (e) {}
+          content.appendChild(animSection);
+        } catch (e) {}
         content.appendChild(invSection);
         content.appendChild(colorsSection);
         // include Dev in the scrolling content so it's not frozen
@@ -2177,11 +2693,11 @@
       resetArea.style.textAlign = 'center';
       // Refresh (left) + Reset (right) buttons
       const refreshBtn = document.createElement('button'); refreshBtn.id = 'mwi-settings-refresh'; refreshBtn.textContent = 'Refresh Page';
-      refreshBtn.style.background = '#1f7d3d'; refreshBtn.style.color = '#fff'; refreshBtn.style.border = '0'; refreshBtn.style.padding = '8px 12px'; refreshBtn.style.borderRadius = '6px'; refreshBtn.style.marginRight = '8px';
+      refreshBtn.style.background = '#1f7d3d'; refreshBtn.style.color = '#fff'; refreshBtn.style.border = '0'; refreshBtn.style.padding = '8px 12px'; refreshBtn.style.borderRadius = '6px'; refreshBtn.style.marginRight = '8px'; refreshBtn.classList.add('mwi-push-btn');
       refreshBtn.addEventListener('click', () => { try { location.reload(); } catch (e) { log('refresh click error', e); } });
 
       const resetBtn = document.createElement('button'); resetBtn.id = 'mwi-settings-reset'; resetBtn.textContent = 'Reset to defaults';
-      resetBtn.style.background = '#7f1d1d'; resetBtn.style.color = '#fff'; resetBtn.style.border = '0'; resetBtn.style.padding = '8px 12px'; resetBtn.style.borderRadius = '6px';
+      resetBtn.style.background = '#7f1d1d'; resetBtn.style.color = '#fff'; resetBtn.style.border = '0'; resetBtn.style.padding = '8px 12px'; resetBtn.style.borderRadius = '6px'; resetBtn.classList.add('mwi-push-btn');
       resetBtn.addEventListener('click', () => {
         try {
           if (document.getElementById('mwi-reset-confirm')) return;
@@ -2258,10 +2774,10 @@
         if (ev.key === 'Escape' || ev.key === 'Esc') {
             // close organize modal first (if open)
             const org = document.getElementById('mwi-organize-overlay');
-            if (org) { try { org.remove(); } catch (e) {} return; }
+            if (org) { try { org.classList.remove('mwi-organize-open'); org.classList.add('mwi-organize-closing'); setTimeout(() => { try { org.remove(); } catch (e) {} }, 200); } catch (e) {} return; }
             // then share/import modal
             const share = document.getElementById('mwi-share-modal-overlay');
-            if (share) { try { share.remove(); } catch (e) {} return; }
+            if (share) { try { share.classList.remove('mwi-share-open'); share.classList.add('mwi-share-closing'); setTimeout(() => { try { share.remove(); } catch (e) {} }, 200); } catch (e) {} return; }
             // finally close the main settings overlay (animate)
             const ov = document.getElementById('mwi-settings-overlay');
             if (ov && ov.style && ov.style.display === 'flex') {
@@ -2282,6 +2798,7 @@
         const ov = document.getElementById('mwi-settings-overlay');
         if (ov) {
           ov.style.display = 'flex';
+          applyUIStyle();
           // trigger pop-in animation
             setTimeout(() => { try { ov.classList.add('mwi-dialog-open'); } catch (e) {} }, 10);
         }
@@ -2312,12 +2829,13 @@
           const cs = window.getComputedStyle(parent);
           if (cs.position === 'static' || !cs.position) parent.style.position = 'relative';
         } catch (e) {}
-        const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Customizer Settings'; btn.textContent = '⚙ MWI Customizer';
+        const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Customizer Settings'; btn.textContent = '\u2699 MWI Customizer';
         btn.setAttribute('aria-label', 'MWI Customizer Settings');
         btn.style.position = 'absolute'; btn.style.right = '8px'; btn.style.top = '8px'; btn.style.zIndex = 9999999;
         btn.addEventListener('click', openSettings);
         // append to parent so it sits over the grid on the far right
         parent.appendChild(btn);
+        applyUIStyle();
         return;
       }
 
@@ -2327,13 +2845,13 @@
         let target = container;
         if (container.tagName && container.tagName.toLowerCase() === 'body') {
           // place fixed near right edge if no filter container found
-          const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Customizer Settings'; btn.textContent = '⚙ MWI Customizer';
+          const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Customizer Settings'; btn.textContent = '\u2699 MWI Customizer';
           btn.style.position = 'fixed'; btn.style.right = '12px'; btn.style.bottom = '12px'; btn.style.zIndex = 9999999;
           btn.addEventListener('click', openSettings);
-          document.body.appendChild(btn); return;
+          document.body.appendChild(btn); applyUIStyle(); return;
         }
         // try to append next to container
-        const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Customizer Settings'; btn.textContent = '⚙ MWI Customizer';
+        const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Customizer Settings'; btn.textContent = '\u2699 MWI Customizer';
         btn.addEventListener('click', openSettings);
         // if container is inline/toolbar, append as child; otherwise append to its parent
         try { container.appendChild(btn); } catch (e) { container.parentElement && container.parentElement.appendChild(btn); }
@@ -2368,10 +2886,14 @@
     observer.observe(document.body, { childList: true, subtree: true });
 
     // Try to insert the settings button once the inventory grid exists (or fallback immediately)
+    // Also re-scan now that the grid is rendered so colors apply on first load
     try {
       await waitFor(() => document.querySelector('.Inventory_itemGrid__20YAH'), 10000, 250);
+      colors = discoverCollectionColors();
+      highlightInventory(colors);
     } catch (e) {}
     insertSettingsButton();
+    hookCombatWS();
 
     // expose for debugging / manual refresh
     window.MWI_InventoryHighlighter = {
