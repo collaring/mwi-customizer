@@ -1,9 +1,9 @@
 ﻿// ==UserScript==
 // @name         MWI Customizer
 // @namespace    https://github.com/collaring
-// @version      1.2
+// @version      1.2.1
 // @description  Customize Milky Way Idle
-// @author       collaring
+// @author       collaring <https://github.com/collaring>
 // @license      MIT
 // @match        https://www.milkywayidle.com/*
 // @match        https://test.milkywayidle.com/*
@@ -123,6 +123,12 @@
       combatAlpha: 1,
       progressBar: '',
       progressBarAlpha: 1,
+      hitDmg: '',
+      hitDmgAlpha: 1,
+      hitMiss: '',
+      hitMissAlpha: 1,
+      barBg: '',
+      barBgAlpha: 1,
       // Selected skill (active navigation link)
       selectedSkill: '',
       selectedSkillAlpha: 1,
@@ -147,6 +153,10 @@
     btnStyle: 'frosted',
     // Animations
     combatAnim: true,
+    usageAnim: true,
+    swapPanels: false,
+    chatTop: false,
+    headerBottom: false,
     // Theme presets removed 窶・use siteColors and manual controls in the UI
   };
 
@@ -275,6 +285,11 @@
         const headVal = (sc.headerAlpha !== undefined && sc.headerAlpha < 1) ? colorToRGBA(sc.header, sc.headerAlpha) : sc.header;
         root.style.setProperty('--mwi-header-bg', headVal);
       } else root.style.removeProperty('--mwi-header-bg');
+      if (sc.headerGrad) {
+        const hgVal = (sc.headerGradAlpha !== undefined && sc.headerGradAlpha < 1) ? colorToRGBA(sc.headerGrad, sc.headerGradAlpha) : sc.headerGrad;
+        root.style.setProperty('--mwi-header-grad', hgVal);
+        root.classList.add('mwi-header-grad-active');
+      } else { root.style.removeProperty('--mwi-header-grad'); root.classList.remove('mwi-header-grad-active'); }
       // panel bg variable still available but we also explicitly override default-colored panels
       // support alpha for panel and accent by converting to rgba when alpha < 1
       if (sc.panelBg) {
@@ -409,6 +424,24 @@
         root.style.removeProperty('--mwi-mp');
         root.classList.remove('mwi-mp-active');
       }
+      // Hitsplat Damage color
+      if (sc.hitDmg) {
+        const hitDmgVal = (sc.hitDmgAlpha !== undefined && sc.hitDmgAlpha < 1) ? colorToRGBA(sc.hitDmg, sc.hitDmgAlpha) : sc.hitDmg;
+        root.style.setProperty('--mwi-hit-dmg', hitDmgVal);
+        root.classList.add('mwi-hit-dmg-active');
+      } else {
+        root.style.removeProperty('--mwi-hit-dmg');
+        root.classList.remove('mwi-hit-dmg-active');
+      }
+      // Hitsplat Miss color
+      if (sc.hitMiss) {
+        const hitMissVal = (sc.hitMissAlpha !== undefined && sc.hitMissAlpha < 1) ? colorToRGBA(sc.hitMiss, sc.hitMissAlpha) : sc.hitMiss;
+        root.style.setProperty('--mwi-hit-miss', hitMissVal);
+        root.classList.add('mwi-hit-miss-active');
+      } else {
+        root.style.removeProperty('--mwi-hit-miss');
+        root.classList.remove('mwi-hit-miss-active');
+      }
       // Attack bar color
       if (sc.attack) {
         const attackVal = (sc.attackAlpha !== undefined && sc.attackAlpha < 1) ? colorToRGBA(sc.attack, sc.attackAlpha) : sc.attack;
@@ -417,6 +450,15 @@
       } else {
         root.style.removeProperty('--mwi-attack');
         root.classList.remove('mwi-attack-active');
+      }
+      // Bar background color
+      if (sc.barBg) {
+        const barBgVal = (sc.barBgAlpha !== undefined && sc.barBgAlpha < 1) ? colorToRGBA(sc.barBg, sc.barBgAlpha) : sc.barBg;
+        root.style.setProperty('--mwi-bar-bg', barBgVal);
+        root.classList.add('mwi-bar-bg-active');
+      } else {
+        root.style.removeProperty('--mwi-bar-bg');
+        root.classList.remove('mwi-bar-bg-active');
       }
       // Consumables / Abilities color
       if (sc.consumables) {
@@ -474,6 +516,10 @@
       } catch (e) { log('apply background error', e); }
       // Use root-level CSS variables so dynamic elements inherit colors.
     try { applyHideOrganize(); } catch (e) {}
+    // Apply panel swap from saved config
+    try { document.documentElement.classList.toggle('mwi-swap-panels', cfg.swapPanels === true); } catch (e) {}
+    try { document.documentElement.classList.toggle('mwi-chat-top', cfg.chatTop === true); } catch (e) {}
+    try { document.documentElement.classList.toggle('mwi-header-bottom', cfg.headerBottom === true); } catch (e) {}
     } catch (e) { log('applySiteColors error', e); }
   }
 
@@ -586,7 +632,7 @@
       const existing = document.getElementById('mwi-organize-overlay'); if (existing) existing.remove();
       const over = document.createElement('div'); over.id = 'mwi-organize-overlay'; over.style.position = 'fixed'; over.style.inset = '0'; over.style.background = 'rgba(0,0,0,0.6)'; over.style.display = 'flex'; over.style.alignItems = 'center'; over.style.justifyContent = 'center'; over.style.zIndex = '10000030';
       const dialog = document.createElement('div'); dialog.id = 'mwi-organize-dialog'; dialog.style.position = 'relative'; dialog.style.background = '#0f1720'; dialog.style.color = '#e6eef8'; dialog.style.padding = '12px'; dialog.style.borderRadius = '8px'; dialog.style.width = '420px'; dialog.style.maxWidth = '86%'; dialog.style.maxHeight = '80vh'; dialog.style.overflow = 'hidden'; dialog.style.boxShadow = '0 8px 24px rgba(0,0,0,0.6)'; dialog.style.display = 'flex'; dialog.style.flexDirection = 'column';
-      const title = document.createElement('h3'); title.textContent = 'Customize Left Side Panel'; title.style.margin = '0 0 8px 0'; title.style.background = 'linear-gradient(90deg, #44aaff, #ff44cc)'; title.style.webkitBackgroundClip = 'text'; title.style.webkitTextFillColor = 'transparent'; title.style.backgroundClip = 'text';
+      const title = document.createElement('h3'); title.textContent = 'Customize left side panel'; title.style.margin = '0 0 8px 0'; title.style.background = 'linear-gradient(90deg, #44aaff, #ff44cc)'; title.style.webkitBackgroundClip = 'text'; title.style.webkitTextFillColor = 'transparent'; title.style.backgroundClip = 'text';
       // top-right close button (matches main modal close style)
       const orgClose = document.createElement('button'); orgClose.id = 'mwi-organize-close'; orgClose.textContent = '\u2715';
       orgClose.style.position = 'absolute'; orgClose.style.top = '8px'; orgClose.style.right = '8px'; orgClose.style.background = 'transparent'; orgClose.style.border = '0'; orgClose.style.color = '#e6eef8'; orgClose.style.fontSize = '16px'; orgClose.style.cursor = 'pointer'; orgClose.style.padding = '4px';
@@ -1447,6 +1493,8 @@
           /* Solid UI style overrides */
           #mwi-settings-dialog.mwi-ui-solid { background: #0f1720; backdrop-filter: none; -webkit-backdrop-filter: none; border: 1px solid rgba(255,255,255,0.12); }
           #mwi-settings-dialog.mwi-ui-solid::before { display: none; }
+          #mwi-search-wrap { background: transparent; }
+          #mwi-settings-dialog.mwi-ui-solid #mwi-search-wrap { background: #0f1720; }
           /* Dialog pop animations - more noticeable pop with overshoot */
           @keyframes mwi-pop-in {
             0% { transform: translateY(-20px) scale(0.9); opacity: 0; }
@@ -1484,9 +1532,17 @@
           /* sitewide customizable colors (set via JS variables) */
               body { color: var(--mwi-text, inherit) !important; }
               .GamePage_headerPanel__1T_cA { background-color: var(--mwi-header-bg, unset) !important; }
+          :root.mwi-header-grad-active [class*="Header_header__"] { background: var(--mwi-header-grad) !important; }
           .panel, .panel-content, .Inventory_inventory__17CH2, .EquipmentPanel_equipmentPanel__29pDG, .AbilitiesPanel_abilitiesPanel__2kLc9, .HousePanel_housePanel__lpphK, .LoadoutsPanel_loadoutsPanel__Gc5VA, [class*="Inventory_inventory__"], [class*="EquipmentPanel_equipmentPanel__"], [class*="AbilitiesPanel_abilitiesPanel__"], [class*="HousePanel_housePanel__"], [class*="LoadoutsPanel_loadoutsPanel__"] { background-color: var(--mwi-panel-bg, unset) !important; }
           :root.mwi-tabs-bg-active body > :not(#mwi-settings-overlay) .MuiTabs-root { background-color: var(--mwi-tabs-bg) !important; }
           .GamePage_navPanel__3wbAU { background-color: var(--mwi-side-panel-bg, unset) !important; }
+          /* Swap left/right panels */
+          :root.mwi-swap-panels [class*="GamePage_gamePanel__"] { flex-direction: row-reverse !important; }
+          :root.mwi-swap-panels [class*="GamePage_contentPanel__"] { flex-direction: row-reverse !important; }
+          /* Move chat to top */
+          :root.mwi-chat-top [class*="GamePage_middlePanel__"] { flex-direction: column-reverse !important; }
+          /* Move header to bottom */
+          :root.mwi-header-bottom [class*="GamePage_gamePage__"] { flex-direction: column-reverse !important; }
           .MainPanel_subPanelContainer__1i-H9 { background-color: var(--mwi-subpanel-bg, unset) !important; }
            .Chat_chat__3DQkj { background-color: var(--mwi-chat-bg, unset) !important; }
            /* Apply button background/color only when user explicitly sets them. These
@@ -1532,11 +1588,11 @@
           .mwi-anim-toggle-row { display:flex; align-items:center; gap:8px; margin:8px 0 4px; }
           .mwi-anim-toggle-row label { color:#c8dff5; font-size:12px; cursor:pointer; user-select:none; }
           .mwi-anim-toggle-row input[type=checkbox] { width:14px; height:14px; cursor:pointer; accent-color:#44aaff; }
-          .mwi-anim-sub { margin-top:8px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.08); }
+          .mwi-anim-sub { margin-top:8px; padding-top:6px; border-top:none; }
           /* Large separator specifically above Inventory */
           #mwi-section-inventory { border-top:2px solid rgba(255,255,255,0.12); }
           /* Large separator above Customizer section */
-          #mwi-section-customizer { border-top:2px solid rgba(255,255,255,0.12); }
+          #mwi-section-customizer { border-top:none; }
           /* sub-sections inside Customizer */
           .mwi-customizer-sub { margin-top:8px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.10); }
           .mwi-customizer-sub h5 { margin:4px 0 6px 0; font-size:12px; background:linear-gradient(90deg,#44aaff,#ff44cc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
@@ -1632,16 +1688,40 @@
             background-image: none !important;
             box-shadow: none !important;
           }
+          :root.mwi-hp-active body > :not(#mwi-settings-overlay) [class*="CombatUnit_heal__"] {
+            background-color: var(--mwi-hp) !important;
+            border-color: var(--mwi-hp) !important;
+          }
           :root.mwi-mp-active body > :not(#mwi-settings-overlay) .ManapointsBar_currentMp__3xpqC {
             background-color: var(--mwi-mp) !important;
             background-image: none !important;
             box-shadow: none !important;
+          }
+          :root.mwi-mp-active body > :not(#mwi-settings-overlay) [class*="CombatUnit_mana__"] {
+            background-color: var(--mwi-mp) !important;
+            border-color: var(--mwi-mp) !important;
+          }
+          /* Hitsplat Damage / Miss (user-configurable) */
+          :root.mwi-hit-dmg-active body > :not(#mwi-settings-overlay) [class*="CombatUnit_damage__"] {
+            background-color: var(--mwi-hit-dmg) !important;
+            border-color: var(--mwi-hit-dmg) !important;
+          }
+          :root.mwi-hit-miss-active body > :not(#mwi-settings-overlay) [class*="CombatUnit_miss__"] {
+            background-color: var(--mwi-hit-miss) !important;
+            border-color: var(--mwi-hit-miss) !important;
           }
           /* Attack bar (user-configurable) */
           :root.mwi-attack-active body > :not(#mwi-settings-overlay) .ProgressBar_innerBar__3Z_sf.ProgressBar_active__Do7AF {
             background-color: var(--mwi-attack) !important;
             background-image: none !important;
             box-shadow: none !important;
+          }
+          /* Bar background (user-configurable) */
+          :root.mwi-bar-bg-active body > :not(#mwi-settings-overlay) [class*="HitpointsBar_hitpointsBar__"],
+          :root.mwi-bar-bg-active body > :not(#mwi-settings-overlay) [class*="ManapointsBar_manapointsBar__"],
+          :root.mwi-bar-bg-active body > :not(#mwi-settings-overlay) [class*="ProgressBar_progressBar__"] {
+            background-color: var(--mwi-bar-bg) !important;
+            background-image: none !important;
           }
           /* Consumables / Abilities */
           :root.mwi-consumables-active body > :not(#mwi-settings-overlay) .Item_item__2De2O.Item_small__1HxwE,
@@ -1922,6 +2002,104 @@
       } catch (e) {}
     }
 
+    // ── Consumable / Ability usage animations ──────────────────────────
+    // Debug helper — call mwiDebugUsage() in the browser console, then use a
+    // consumable or ability. It will log every DOM mutation on those elements
+    // so we can see exactly what signal fires.
+    window.mwiDebugUsage = function() {
+      console.log('[mwi-debug] Starting usage DOM observer. Use a consumable or ability now.');
+      const obs = new MutationObserver((muts) => {
+        for (const m of muts) {
+          const target = m.target;
+          const cls = (typeof target.className === 'string') ? target.className : (target.data !== undefined ? '#text' : '?');
+          if (m.type === 'childList') {
+            m.addedNodes.forEach(n => console.log('[mwi-debug] childList ADD', n.nodeName, typeof n.className === 'string' ? n.className : n.data, '| parent:', cls));
+            m.removedNodes.forEach(n => console.log('[mwi-debug] childList REM', n.nodeName, typeof n.className === 'string' ? n.className : n.data, '| parent:', cls));
+          } else if (m.type === 'attributes') {
+            console.log('[mwi-debug] attr change [' + m.attributeName + ']', '\n  old:', m.oldValue, '\n  new:', target.getAttribute(m.attributeName), '\n  el:', cls);
+          } else if (m.type === 'characterData') {
+            console.log('[mwi-debug] text change old:"' + m.oldValue + '" → new:"' + m.target.data + '" | parent:', target.parentElement && (target.parentElement.className || target.parentElement.nodeName));
+          }
+        }
+      });
+      obs.observe(document.body, {
+        childList: true, subtree: true,
+        characterData: true, characterDataOldValue: true,
+        attributes: true, attributeOldValue: true,
+      });
+      console.log('[mwi-debug] Observer active. Call mwiDebugUsageStop() to stop.');
+      window.mwiDebugUsageStop = function() { obs.disconnect(); console.log('[mwi-debug] Stopped.'); };
+    };
+
+    function hookUsageAnim() {
+      if (window._mwiUsageAnimHooked) return;
+      window._mwiUsageAnimHooked = true;
+
+      // Consumable: crunchy pop — quick squash (bite/crunch) then springy bounce back
+      function playConsumeAnim(el) {
+        if (!el || el._mwiConsumeAnim) return;
+        el._mwiConsumeAnim = true;
+        const a = el.animate([
+          { transform: 'scale(1)',           filter: 'brightness(1)',    offset: 0.00 },
+          { transform: 'scale(0.80, 0.78)', filter: 'brightness(1.9)',  offset: 0.10 }, // crunch
+          { transform: 'scale(1.20, 1.18)', filter: 'brightness(1.5)',  offset: 0.28 }, // pop
+          { transform: 'scale(0.93, 0.95)', filter: 'brightness(1.15)', offset: 0.46 },
+          { transform: 'scale(1.04, 1.03)', filter: 'brightness(1.06)', offset: 0.63 },
+          { transform: 'scale(1)',           filter: 'brightness(1)',    offset: 1.00 }
+        ], { duration: 2000, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)', fill: 'none' });
+        a.onfinish = () => { el._mwiConsumeAnim = false; };
+      }
+
+      // Ability: impactful surge — charge-up burst then crash-down, with fiery glow
+      function playAbilityAnim(el) {
+        if (!el || el._mwiAbilityAnim) return;
+        el._mwiAbilityAnim = true;
+        const a = el.animate([
+          { transform: 'scale(1)',    filter: 'brightness(1)',                                              offset: 0.00 },
+          { transform: 'scale(1.32)', filter: 'brightness(2.6) drop-shadow(0 0 14px rgba(255,180,40,1))', offset: 0.14 },
+          { transform: 'scale(0.85)', filter: 'brightness(1.6) drop-shadow(0 0 9px rgba(255,90,20,0.8))', offset: 0.33 },
+          { transform: 'scale(1.10)', filter: 'brightness(1.25) drop-shadow(0 0 5px rgba(255,70,0,0.4))', offset: 0.52 },
+          { transform: 'scale(0.97)', filter: 'brightness(1.06)',                                          offset: 0.73 },
+          { transform: 'scale(1)',    filter: 'brightness(1)',                                             offset: 1.00 }
+        ], { duration: 2000, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)', fill: 'none' });
+        a.onfinish = () => { el._mwiAbilityAnim = false; };
+      }
+
+      // ── Unified observer — triggered by CountdownOverlay add/remove.
+      // Abilities:   CountdownOverlay ADDED to CombatAbility_combatAbility__ (new cooldown starts = ability fired)
+      // Consumables: CountdownOverlay ADDED to CombatConsumable_combatConsumable__
+      const obs = new MutationObserver((mutations) => {
+        if (cfg.usageAnim === false) return;
+        for (const mut of mutations) {
+          if (mut.type !== 'childList') continue;
+          const parentCls = typeof mut.target.className === 'string' ? mut.target.className : '';
+
+          if (parentCls.includes('CombatAbility_combatAbility__')) {
+            // Fire on addition of the countdown overlay (ability just activated)
+            for (const node of mut.addedNodes) {
+              if (node.nodeType !== 1) continue;
+              const cls = typeof node.className === 'string' ? node.className : '';
+              if (cls.includes('CountdownOverlay_countdownOverlay__')) {
+                playAbilityAnim(mut.target);
+                break;
+              }
+            }
+          } else if (parentCls.includes('CombatConsumable_combatConsumable__')) {
+            // Fire on addition of the countdown overlay (consumable just used)
+            for (const node of mut.addedNodes) {
+              if (node.nodeType !== 1) continue;
+              const cls = typeof node.className === 'string' ? node.className : '';
+              if (cls.includes('CountdownOverlay_countdownOverlay__')) {
+                playConsumeAnim(mut.target);
+                break;
+              }
+            }
+          }
+        }
+      });
+      obs.observe(document.body, { childList: true, subtree: true });
+    }
+
     function hookCombatWS() {
       if (window._mwiCombatWSHooked) return;
       window._mwiCombatWSHooked = true;
@@ -2006,8 +2184,63 @@
       const closeBtn = document.createElement('button'); closeBtn.id = 'mwi-settings-close'; closeBtn.textContent = '\u2715';
       closeBtn.addEventListener('click', () => animateClose());
 
-      const title = document.createElement('h3'); title.textContent = 'MWI Customizer Settings'; title.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; title.style.webkitBackgroundClip = 'text'; title.style.webkitTextFillColor = 'transparent'; title.style.backgroundClip = 'text';
+      const title = document.createElement('h3'); title.textContent = 'MWI Customizer Settings - v1.2.1'; title.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; title.style.webkitBackgroundClip = 'text'; title.style.webkitTextFillColor = 'transparent'; title.style.backgroundClip = 'text';
       const notice = document.createElement('div'); notice.className = 'mwi-settings-notice'; notice.textContent = 'Refresh the page for changes to apply.';
+
+      // Search bar (sticky, below notice)
+      const searchWrap = document.createElement('div');
+      searchWrap.id = 'mwi-search-wrap';
+      searchWrap.style.cssText = 'position:sticky;top:0;z-index:10;padding:8px 16px 6px;margin:0 -16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:4px;';
+      const searchInput = document.createElement('input'); searchInput.type = 'text'; searchInput.id = 'mwi-settings-search'; searchInput.placeholder = 'Search settings…';
+      searchInput.style.cssText = 'flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:5px 10px;color:#e6eef8;font-size:13px;outline:none;font-family:inherit;transition:border-color 0.2s;min-width:0;';
+      searchInput.addEventListener('focus', () => { searchInput.style.borderColor = '#44aaff'; });
+      searchInput.addEventListener('blur', () => { searchInput.style.borderColor = 'rgba(255,255,255,0.15)'; });
+      const clearBtn = document.createElement('button'); clearBtn.textContent = '✕'; clearBtn.title = 'Clear search';
+      clearBtn.style.cssText = 'background:none;border:none;color:#99b7d9;font-size:13px;cursor:pointer;padding:0 4px;flex-shrink:0;opacity:0;transition:opacity 0.2s;';
+      function runSearch() {
+        const q = searchInput.value.trim().toLowerCase();
+        clearBtn.style.opacity = q ? '1' : '0';
+        const content = document.getElementById('mwi-settings-content');
+        if (!content) return;
+        if (!q) {
+          content.querySelectorAll('.mwi-settings-section,.mwi-colors-subsection,.mwi-customizer-sub').forEach(el => { el.style.display = ''; });
+          return;
+        }
+        // Search mwi-customizer-sub blocks (Themes, Background, Manage Elements, etc.)
+        content.querySelectorAll('.mwi-customizer-sub').forEach(sub => {
+          const txt = sub.textContent.toLowerCase();
+          sub.style.display = txt.includes(q) ? '' : 'none';
+        });
+        content.querySelectorAll('.mwi-settings-section').forEach(section => {
+          let sectionMatch = false;
+          const h4 = section.querySelector('h4');
+          if (h4 && h4.textContent.toLowerCase().includes(q)) { sectionMatch = true; }
+          section.querySelectorAll('.mwi-colors-subsection').forEach(sub => {
+            let subMatch = false;
+            const h5 = sub.querySelector('h5');
+            if (h5 && h5.textContent.toLowerCase().includes(q)) { subMatch = true; }
+            sub.querySelectorAll('.mwi-settings-row').forEach(row => {
+              const txt = row.textContent.toLowerCase();
+              if (txt.includes(q)) subMatch = true;
+            });
+            sub.style.display = subMatch ? '' : 'none';
+            if (subMatch) sectionMatch = true;
+          });
+          section.querySelectorAll(':scope > .mwi-settings-row').forEach(row => {
+            const txt = row.textContent.toLowerCase();
+            if (txt.includes(q)) sectionMatch = true;
+          });
+          // Also check mwi-customizer-sub children inside this section
+          section.querySelectorAll(':scope > .mwi-customizer-sub').forEach(sub => {
+            if (sub.style.display !== 'none') sectionMatch = true;
+          });
+          section.style.display = sectionMatch ? '' : 'none';
+        });
+      }
+      searchInput.addEventListener('input', runSearch);
+      clearBtn.addEventListener('click', () => { searchInput.value = ''; runSearch(); searchInput.focus(); });
+      searchWrap.appendChild(searchInput); searchWrap.appendChild(clearBtn);
+
       const content = document.createElement('div'); content.id = 'mwi-settings-content'; content.style.marginTop = '8px';
 
       // Small helper to ensure the 'Borders' row appears before 'Glow'
@@ -2210,8 +2443,8 @@
       // Enable toggle
       try {
         const beRow = document.createElement('div'); beRow.className = 'mwi-settings-row';
-        const beLabel = document.createElement('label'); beLabel.textContent = 'Enable background';
-        const beChk = document.createElement('input'); beChk.type = 'checkbox'; beChk.checked = !!cfg.backgroundEnabled;
+        const beLabel = document.createElement('label'); beLabel.textContent = 'Enable background'; beLabel.htmlFor = 'mwi-bg-enabled-chk'; beLabel.style.cursor = 'pointer'; beLabel.style.flex = '1';
+        const beChk = document.createElement('input'); beChk.type = 'checkbox'; beChk.id = 'mwi-bg-enabled-chk'; beChk.checked = !!cfg.backgroundEnabled;
         beChk.addEventListener('change', () => { cfg.backgroundEnabled = beChk.checked; applySiteColors(); saveSettings(); });
         beRow.appendChild(beLabel); beRow.appendChild(beChk); bgList.appendChild(beRow);
       } catch (e) {}
@@ -2255,16 +2488,46 @@
 
       // Hide/Organize Elements section (button opens organize modal)
       const hideSection = document.createElement('div'); hideSection.className = 'mwi-customizer-sub'; hideSection.id = 'mwi-section-hide-organize';
-      const hideTitle = document.createElement('h5'); hideTitle.textContent = 'Customize Left Side Panel'; hideSection.appendChild(hideTitle);
+      const hideTitle = document.createElement('h5'); hideTitle.textContent = 'Manage Elements'; hideSection.appendChild(hideTitle);
       const hideList = document.createElement('div'); hideList.style.marginTop = '6px';
       try {
         const openBtnRow = document.createElement('div'); openBtnRow.className = 'mwi-settings-row';
-        const openLabel = document.createElement('label'); openLabel.textContent = 'Manage elements'; openLabel.style.flex = '1';
+        const openLabel = document.createElement('label'); openLabel.textContent = 'Customize left side panel'; openLabel.style.flex = '1';
         const openBtn = document.createElement('button'); openBtn.type = 'button'; openBtn.textContent = 'Manage';
         // Manage: neutral gray
         openBtn.style.background = '#6b7280'; openBtn.style.color = '#fff'; openBtn.style.border = '0'; openBtn.style.padding = '6px 10px'; openBtn.style.borderRadius = '6px'; openBtn.style.marginRight = '8px'; openBtn.classList.add('mwi-push-btn');
         openBtn.addEventListener('click', () => { try { openOrganizeModal(); } catch (e) { log('open organize error', e); } });
         openBtnRow.appendChild(openLabel); openBtnRow.appendChild(openBtn); hideList.appendChild(openBtnRow);
+        // Swap panels toggle
+        const swapRow = document.createElement('div'); swapRow.className = 'mwi-settings-row'; swapRow.style.marginTop = '8px';
+        const swapChk = document.createElement('input'); swapChk.type = 'checkbox'; swapChk.id = 'mwi-swap-panels-chk'; swapChk.checked = (cfg.swapPanels === true);
+        const swapLbl = document.createElement('label'); swapLbl.htmlFor = 'mwi-swap-panels-chk'; swapLbl.textContent = 'Swap left and right panels';
+        swapChk.addEventListener('change', () => {
+          cfg.swapPanels = swapChk.checked;
+          saveSettings();
+          document.documentElement.classList.toggle('mwi-swap-panels', cfg.swapPanels);
+        });
+        swapRow.appendChild(swapLbl); swapRow.appendChild(swapChk); hideList.appendChild(swapRow);
+        // Chat to top toggle
+        const chatTopRow = document.createElement('div'); chatTopRow.className = 'mwi-settings-row'; chatTopRow.style.marginTop = '8px';
+        const chatTopChk = document.createElement('input'); chatTopChk.type = 'checkbox'; chatTopChk.id = 'mwi-chat-top-chk'; chatTopChk.checked = (cfg.chatTop === true);
+        const chatTopLbl = document.createElement('label'); chatTopLbl.htmlFor = 'mwi-chat-top-chk'; chatTopLbl.textContent = 'Move chat to top'; chatTopLbl.style.cursor = 'pointer'; chatTopLbl.style.flex = '1';
+        chatTopChk.addEventListener('change', () => {
+          cfg.chatTop = chatTopChk.checked;
+          saveSettings();
+          document.documentElement.classList.toggle('mwi-chat-top', cfg.chatTop);
+        });
+        chatTopRow.appendChild(chatTopLbl); chatTopRow.appendChild(chatTopChk); hideList.appendChild(chatTopRow);
+        // Header to bottom toggle
+        const hdrRow = document.createElement('div'); hdrRow.className = 'mwi-settings-row'; hdrRow.style.marginTop = '8px';
+        const hdrChk = document.createElement('input'); hdrChk.type = 'checkbox'; hdrChk.id = 'mwi-header-bottom-chk'; hdrChk.checked = (cfg.headerBottom === true);
+        const hdrLbl = document.createElement('label'); hdrLbl.htmlFor = 'mwi-header-bottom-chk'; hdrLbl.textContent = 'Move header to bottom'; hdrLbl.style.cursor = 'pointer'; hdrLbl.style.flex = '1';
+        hdrChk.addEventListener('change', () => {
+          cfg.headerBottom = hdrChk.checked;
+          saveSettings();
+          document.documentElement.classList.toggle('mwi-header-bottom', cfg.headerBottom);
+        });
+        hdrRow.appendChild(hdrLbl); hdrRow.appendChild(hdrChk); hideList.appendChild(hdrRow);
       } catch (e) {}
       hideSection.appendChild(hideList);
 
@@ -2346,8 +2609,8 @@
 
       // Inventory setting: toggle inner curved border (disable the bright inset border)
       const innerRow = document.createElement('div'); innerRow.className = 'mwi-settings-row';
-      const innerLabel = document.createElement('label'); innerLabel.textContent = 'Borders';
-      const innerChk = document.createElement('input'); innerChk.type = 'checkbox'; innerChk.checked = !!cfg.showInnerBorder;
+      const innerLabel = document.createElement('label'); innerLabel.textContent = 'Borders'; innerLabel.htmlFor = 'mwi-borders-chk'; innerLabel.style.cursor = 'pointer'; innerLabel.style.flex = '1';
+      const innerChk = document.createElement('input'); innerChk.type = 'checkbox'; innerChk.id = 'mwi-borders-chk'; innerChk.checked = !!cfg.showInnerBorder;
       innerChk.addEventListener('change', () => { cfg.showInnerBorder = innerChk.checked; saveSettings(); try { if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) {} });
       innerRow.appendChild(innerLabel); innerRow.appendChild(innerChk);
       invSection.appendChild(innerRow);
@@ -2509,13 +2772,17 @@
         const groups = [
           { title: 'Header', fields: [
             { key: 'header', label: 'Header' , hasAlpha: true, alphaKey: 'headerAlpha', defaultAlpha: 0.2},
+            { key: 'headerGrad', label: 'Header Gradient', hasAlpha: true, alphaKey: 'headerGradAlpha', defaultAlpha: 1},
             { key: 'progressBar', label: 'Progress Bar', hasAlpha: true, alphaKey: 'progressBarAlpha', defaultAlpha: 1}
           ]},
           { title: 'Combat', fields: [
             { key: 'combat', label: 'Combat', hasAlpha: true, alphaKey: 'combatAlpha', defaultAlpha: 1},
             { key: 'hp', label: 'HP', hasAlpha: true, alphaKey: 'hpAlpha', defaultAlpha: 1},
             { key: 'mp', label: 'MP', hasAlpha: true, alphaKey: 'mpAlpha', defaultAlpha: 1},
-            { key: 'attack', label: 'Attack', hasAlpha: true, alphaKey: 'attackAlpha', defaultAlpha: 1}
+            { key: 'hitDmg', label: 'Hitsplat Damage', hasAlpha: true, alphaKey: 'hitDmgAlpha', defaultAlpha: 1},
+            { key: 'hitMiss', label: 'Hitsplat Miss', hasAlpha: true, alphaKey: 'hitMissAlpha', defaultAlpha: 1},
+            { key: 'attack', label: 'Attack', hasAlpha: true, alphaKey: 'attackAlpha', defaultAlpha: 1},
+            { key: 'barBg', label: 'Bar Background', hasAlpha: true, alphaKey: 'barBgAlpha', defaultAlpha: 1}
           ,
             { key: 'consumables', label: 'Consumables / Abilities', hasAlpha: true, alphaKey: 'consumablesAlpha', defaultAlpha: 1}
           ]},
@@ -2677,6 +2944,12 @@
             const combatLbl = document.createElement('label'); combatLbl.htmlFor = 'mwi-anim-combat-chk'; combatLbl.textContent = 'Hit impact - Inspired by MWI-Hit-Tracker';
             combatChk.addEventListener('change', () => { cfg.combatAnim = combatChk.checked; saveSettings(); });
             combatRow.appendChild(combatChk); combatRow.appendChild(combatLbl); combatSub.appendChild(combatRow);
+            // Consumables / Abilities usage animation toggle
+            const usageRow = document.createElement('div'); usageRow.className = 'mwi-anim-toggle-row';
+            const usageChk = document.createElement('input'); usageChk.type = 'checkbox'; usageChk.id = 'mwi-anim-usage-chk'; usageChk.checked = (cfg.usageAnim !== false);
+            const usageLbl = document.createElement('label'); usageLbl.htmlFor = 'mwi-anim-usage-chk'; usageLbl.textContent = 'Consumables / Abilities usage';
+            usageChk.addEventListener('change', () => { cfg.usageAnim = usageChk.checked; saveSettings(); });
+            usageRow.appendChild(usageChk); usageRow.appendChild(usageLbl); combatSub.appendChild(usageRow);
             animSection.appendChild(combatSub);
           } catch (e) {}
           content.appendChild(animSection);
@@ -2738,7 +3011,7 @@
       resetArea.appendChild(refreshBtn);
       resetArea.appendChild(resetBtn);
 
-      dialog.appendChild(closeBtn); dialog.appendChild(title); dialog.appendChild(notice); dialog.appendChild(content); dialog.appendChild(footer);
+      dialog.appendChild(closeBtn); dialog.appendChild(title); dialog.appendChild(notice); dialog.appendChild(searchWrap); dialog.appendChild(content); dialog.appendChild(footer);
       dialog.appendChild(resetArea);
       // signature footer (frozen, not part of scrollable content)
       try {
@@ -2748,10 +3021,24 @@
         // Links row: GitHub | Greasy Fork
         const links = document.createElement('div');
         links.style.marginTop = '6px'; links.style.fontSize = '12px'; links.style.color = '#99b7d9'; links.style.textAlign = 'center';
-        const gh = document.createElement('a'); gh.href = 'https://github.com/collaring/mwi-customizer'; gh.textContent = 'GitHub'; gh.target = '_blank'; gh.style.color = '#9ecbff'; gh.style.margin = '0 8px'; gh.style.textDecoration = 'none';
+        const gh = document.createElement('a'); gh.href = 'https://github.com/collaring/mwi-customizer'; gh.textContent = 'GitHub'; gh.target = '_blank'; gh.style.cssText = 'color:#9ecbff;margin:0 8px;text-decoration:none;transition:color 200ms ease;background-clip:text;-webkit-background-clip:text;';
+        const gfHoverStyle = 'background:linear-gradient(90deg,#44aaff,#ff44cc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;color:transparent;';
+        const ghHoverStyle = gfHoverStyle;
+        gh.addEventListener('mouseenter', () => { gh.style.cssText += ghHoverStyle; });
+        gh.addEventListener('mouseleave', () => { gh.style.cssText = 'color:#9ecbff;margin:0 8px;text-decoration:none;transition:color 200ms ease;'; });
         const sep = document.createElement('span'); sep.textContent = '|'; sep.style.color = '#6f8fa3'; sep.style.margin = '0 4px';
-        const gf = document.createElement('a'); gf.href = 'https://greasyfork.org/en/scripts/570632-mwi-customizer'; gf.textContent = 'Greasy Fork'; gf.target = '_blank'; gf.style.color = '#9ecbff'; gf.style.margin = '0 8px'; gf.style.textDecoration = 'none';
-        links.appendChild(gh); links.appendChild(sep); links.appendChild(gf);
+        const gf = document.createElement('a'); gf.href = 'https://greasyfork.org/en/scripts/570632-mwi-customizer'; gf.textContent = 'Greasy Fork'; gf.target = '_blank'; gf.style.cssText = 'color:#9ecbff;margin:0 8px;text-decoration:none;transition:color 200ms ease;';
+        gf.addEventListener('mouseenter', () => { gf.style.cssText += gfHoverStyle; });
+        gf.addEventListener('mouseleave', () => { gf.style.cssText = 'color:#9ecbff;margin:0 8px;text-decoration:none;transition:color 200ms ease;'; });
+        const sep2 = document.createElement('span'); sep2.textContent = '|'; sep2.style.color = '#6f8fa3'; sep2.style.margin = '0 4px';
+        const dc = document.createElement('a'); dc.href = 'https://discord.com/channels/891160051459436574/1485148839743721513'; dc.textContent = 'Discord'; dc.target = '_blank'; dc.style.cssText = 'color:#9ecbff;margin:0 8px;text-decoration:none;transition:color 200ms ease;';
+        dc.addEventListener('mouseenter', () => { dc.style.cssText += gfHoverStyle; });
+        dc.addEventListener('mouseleave', () => { dc.style.cssText = 'color:#9ecbff;margin:0 8px;text-decoration:none;transition:color 200ms ease;'; });
+        const sep3 = document.createElement('span'); sep3.textContent = '|'; sep3.style.color = '#6f8fa3'; sep3.style.margin = '0 4px';
+        const ws = document.createElement('a'); ws.href = 'https://ave.sh/'; ws.textContent = 'Website'; ws.target = '_blank'; ws.style.cssText = 'color:#9ecbff;margin:0 8px;text-decoration:none;transition:color 200ms ease;';
+        ws.addEventListener('mouseenter', () => { ws.style.cssText += gfHoverStyle; });
+        ws.addEventListener('mouseleave', () => { ws.style.cssText = 'color:#9ecbff;margin:0 8px;text-decoration:none;transition:color 200ms ease;'; });
+        links.appendChild(gh); links.appendChild(sep); links.appendChild(gf); links.appendChild(sep2); links.appendChild(dc); links.appendChild(sep3); links.appendChild(ws);
         dialog.appendChild(sig); dialog.appendChild(links);
       } catch (e) {}
       overlay.appendChild(dialog); document.body.appendChild(overlay);
@@ -2894,6 +3181,26 @@
     } catch (e) {}
     insertSettingsButton();
     hookCombatWS();
+    try { hookUsageAnim(); } catch (e) {}
+
+    // Re-insert the settings button if React ever removes it during a re-render.
+    // Uses the existing body MutationObserver (observer) — piggyback a debounced check.
+    let btnWatchTimer = null;
+    const btnObserver = new MutationObserver(() => {
+      try {
+        if (btnWatchTimer) return; // already scheduled
+        btnWatchTimer = setTimeout(() => {
+          btnWatchTimer = null;
+          try {
+            if (!document.getElementById('mwi-settings-btn')) {
+              log('Settings button missing — reinserting');
+              insertSettingsButton();
+            }
+          } catch (e) {}
+        }, 300);
+      } catch (e) {}
+    });
+    btnObserver.observe(document.body, { childList: true, subtree: true });
 
     // expose for debugging / manual refresh
     window.MWI_InventoryHighlighter = {
