@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         MWI Customizer
 // @namespace    https://github.com/collaring
-// @version      1.2.2
+// @version      1.2.3
 // @description  Customize Milky Way Idle
 // @author       collaring <https://github.com/collaring>
 // @license      MIT
@@ -146,9 +146,11 @@
     uiStyle: 'frosted',
     // Settings button style: 'frosted' (default) or 'solid'
     btnStyle: 'frosted',
+    hoverHighlight: true,
     // Animations
     combatAnim: true,
     usageAnim: true,
+    chatAnim: true,
     swapPanels: false,
     chatTop: false,
     headerBottom: false,
@@ -496,6 +498,18 @@
       if (sc.text) root.style.setProperty('--mwi-text', sc.text);
       else if (sc.accent) root.style.setProperty('--mwi-text', sc.accent);
       else root.style.removeProperty('--mwi-text');
+      // Site color element size scale (zoom) CSS variables
+      const SITE_SIZE_KEYS = ['header','headerGrad','progressBar','combat','hp','mp','hitDmg','hitMiss','attack','barBg','consumables','subPanel','skillActions','sidePanel','selectedSkill','skillXPBar','navLabel','level','panelBg','inventoryLabels','interactables','chatBg','timestamp','chatText','systemMessage','buttonBg','tabsBg','accent'];
+      for (const k of SITE_SIZE_KEYS) {
+        const sz = sc[k + 'Size'];
+        if (sz !== undefined && sz !== 1) {
+          root.style.setProperty('--mwi-' + k + '-sz', sz);
+          root.classList.add('mwi-' + k + '-sz-active');
+        } else {
+          root.style.removeProperty('--mwi-' + k + '-sz');
+          root.classList.remove('mwi-' + k + '-sz-active');
+        }
+      }
       // Custom background image (opt-in)
       try {
         if (cfg.backgroundUrl && String(cfg.backgroundUrl).trim()) {
@@ -1304,7 +1318,7 @@
       if (!colorInfo && useAll) {
         try {
           const col = cfg.allColor || '#ffffff';
-          const a = (cfg.allAlpha !== undefined ? cfg.allAlpha : 1);
+          const a = (cfg.allAlpha !== undefined ? cfg.allAlpha : 0.2);
           colorInfo = { color: col, alpha: a };
         } catch (e) {}
       }
@@ -1447,6 +1461,18 @@
           #mwi-settings-content { overflow-y:auto; max-height: calc(80vh - 160px); padding-right:16px; scrollbar-gutter: stable; }
           .mwi-settings-notice { font-size:12px; color:#9fb7d7; margin:6px 0 8px 0; }
           .mwi-settings-row { margin:8px 0; display:flex; align-items:center; justify-content:space-between; }
+          /* Site colors rows: lock widths of each control column so all rows align */
+          .mwi-colors-subsection .mwi-settings-row input[type="color"],
+          .mwi-color-row input[type="color"] { flex: 0 0 56px; width: 56px; height: 22px; padding: 1px 2px; }
+          .mwi-colors-subsection .mwi-settings-row input[type="range"],
+          .mwi-color-row input[type="range"] { flex: 0 0 80px; width: 80px; margin-left: 8px; }
+          .mwi-colors-subsection .mwi-settings-row input[type="number"] { flex: 0 0 38px; width: 38px; margin-left: 8px; }
+          .mwi-colors-subsection .mwi-settings-row .mwi-push-btn,
+          .mwi-color-row .mwi-push-btn { flex: 0 0 26px; }
+          .mwi-sz-spacer { flex: 0 0 38px; display: inline-block; }
+          /* Ensure the label column in color rows has a consistent min-width so controls align across all sections */
+          .mwi-colors-subsection .mwi-settings-row > div:first-child,
+          .mwi-color-row > div:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
           .mwi-settings-section { margin-top:12px; padding-top:8px; border-top:0; }
           .mwi-settings-section h4 { margin:0 0 8px 0; font-size:15px; color:#bcd3ea; }
           #mwi-settings-dialog h4 { text-decoration: underline; }
@@ -1788,6 +1814,44 @@
           :root.mwi-progress-bar-active #mwi-settings-dialog [class*="ProgressBar_active__"] {
             background-image: none !important; box-shadow: none !important; color: inherit !important;
           }
+          /* Site color size scale (zoom) — only active when user sets a value != 1 */
+          :root.mwi-header-sz-active body > :not(#mwi-settings-overlay) .GamePage_headerPanel__1T_cA { zoom: var(--mwi-header-sz); }
+          :root.mwi-headerGrad-sz-active body > :not(#mwi-settings-overlay) [class*="Header_header__"] { zoom: var(--mwi-headerGrad-sz); }
+          :root.mwi-progressBar-sz-active body > :not(#mwi-settings-overlay) [class*="ProgressBar_progressBar__"] { zoom: var(--mwi-progressBar-sz); }
+          :root.mwi-combat-sz-active body > :not(#mwi-settings-overlay) [class*="CombatUnit_combatUnit__"] { zoom: var(--mwi-combat-sz); }
+          :root.mwi-hp-sz-active body > :not(#mwi-settings-overlay) [class*="HitpointsBar_hitpointsBar__"] { zoom: var(--mwi-hp-sz); }
+          :root.mwi-mp-sz-active body > :not(#mwi-settings-overlay) [class*="ManapointsBar_manapointsBar__"] { zoom: var(--mwi-mp-sz); }
+          :root.mwi-hitDmg-sz-active body > :not(#mwi-settings-overlay) [class*="CombatUnit_damage__"] { zoom: var(--mwi-hitDmg-sz); }
+          :root.mwi-hitMiss-sz-active body > :not(#mwi-settings-overlay) [class*="CombatUnit_miss__"] { zoom: var(--mwi-hitMiss-sz); }
+          :root.mwi-attack-sz-active body > :not(#mwi-settings-overlay) .ProgressBar_innerBar__3Z_sf.ProgressBar_active__Do7AF { zoom: var(--mwi-attack-sz); }
+          :root.mwi-barBg-sz-active body > :not(#mwi-settings-overlay) [class*="HitpointsBar_hitpointsBar__"],
+          :root.mwi-barBg-sz-active body > :not(#mwi-settings-overlay) [class*="ManapointsBar_manapointsBar__"],
+          :root.mwi-barBg-sz-active body > :not(#mwi-settings-overlay) [class*="ProgressBar_progressBar__"] { zoom: var(--mwi-barBg-sz); }
+          :root.mwi-consumables-sz-active body > :not(#mwi-settings-overlay) .Item_item__2De2O.Item_small__1HxwE,
+          :root.mwi-consumables-sz-active body > :not(#mwi-settings-overlay) .Ability_ability__1njrh.Ability_small__1GKAt { zoom: var(--mwi-consumables-sz); }
+          :root.mwi-subPanel-sz-active body > :not(#mwi-settings-overlay) .MainPanel_subPanelContainer__1i-H9 { zoom: var(--mwi-subPanel-sz); }
+          :root.mwi-skillActions-sz-active body > :not(#mwi-settings-overlay) [class*="SkillAction_skillAction__"] { zoom: var(--mwi-skillActions-sz); }
+          :root.mwi-sidePanel-sz-active body > :not(#mwi-settings-overlay) .GamePage_navPanel__3wbAU { zoom: var(--mwi-sidePanel-sz); }
+          :root.mwi-selectedSkill-sz-active body > :not(#mwi-settings-overlay) [class*="NavigationBar_navigationLink__"][class*="NavigationBar_active__"] { zoom: var(--mwi-selectedSkill-sz); }
+          :root.mwi-skillXPBar-sz-active body > :not(#mwi-settings-overlay) [class*="NavigationBar_currentExperience__"] { zoom: var(--mwi-skillXPBar-sz); }
+          :root.mwi-navLabel-sz-active body > :not(#mwi-settings-overlay) [class*="NavigationBar_label__"] { zoom: var(--mwi-navLabel-sz); }
+          :root.mwi-level-sz-active body > :not(#mwi-settings-overlay) [class*="NavigationBar_level__"] { zoom: var(--mwi-level-sz); }
+          :root.mwi-panelBg-sz-active body > :not(#mwi-settings-overlay) [class*="Inventory_inventory__"] { zoom: var(--mwi-panelBg-sz); }
+          :root.mwi-inventoryLabels-sz-active body > :not(#mwi-settings-overlay) [class*="Inventory_label__"] { zoom: var(--mwi-inventoryLabels-sz); }
+          :root.mwi-interactables-sz-active body > :not(#mwi-settings-overlay) [class*="Item_item__2De2O"][class*="Item_clickable__"],
+          :root.mwi-interactables-sz-active body > :not(#mwi-settings-overlay) [class*="Ability_ability__"][class*="Ability_clickable__"] { zoom: var(--mwi-interactables-sz); }
+          :root.mwi-chatBg-sz-active body > :not(#mwi-settings-overlay) .Chat_chat__3DQkj { zoom: var(--mwi-chatBg-sz); }
+          :root.mwi-timestamp-sz-active body > :not(#mwi-settings-overlay) [class*="ChatMessage_timestamp__"] { zoom: var(--mwi-timestamp-sz); }
+          :root.mwi-chatText-sz-active body > :not(#mwi-settings-overlay) [data-mwi-chat-text-applied] { zoom: var(--mwi-chatText-sz); }
+          :root.mwi-systemMessage-sz-active body > :not(#mwi-settings-overlay) [class*="ChatMessage_systemMessage__"] { zoom: var(--mwi-systemMessage-sz); }
+          :root.mwi-buttonBg-sz-active body > :not(#mwi-settings-overlay) .MuiButtonBase-root.MuiTab-root[class*="MuiTab-textColorPrimary"] { zoom: var(--mwi-buttonBg-sz); }
+          :root.mwi-tabsBg-sz-active body > :not(#mwi-settings-overlay) .MuiTabs-root { zoom: var(--mwi-tabsBg-sz); }
+          :root.mwi-accent-sz-active body > :not(#mwi-settings-overlay) [class*="Header_header__"] { zoom: var(--mwi-accent-sz); }
+          /* Hover preview highlight for site colors rows */
+          .mwi-preview-highlight { outline: 2px solid #ff44cc !important; outline-offset: 1px !important; }
+          /* Chat message pop-in animation */
+          @keyframes mwi-chat-popin { 0% { opacity:0; transform:translateY(10px); } 100% { opacity:1; transform:translateY(0); } }
+          .mwi-chat-popin { animation: mwi-chat-popin 0.28s cubic-bezier(0.22,1,0.36,1) both; }
         `;
       const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
     }
@@ -1952,6 +2016,26 @@
       window.mwiDebugUsageStop = function() { obs.disconnect(); console.log('[mwi-debug] Stopped.'); };
     };
 
+    function hookChatAnim() {
+      if (window._mwiChatAnimHooked) return;
+      window._mwiChatAnimHooked = true;
+      const chatObs = new MutationObserver(muts => {
+        if (cfg.chatAnim === false) return;
+        for (const mut of muts) {
+          for (const node of mut.addedNodes) {
+            if (node.nodeType !== 1) continue;
+            const cls = typeof node.className === 'string' ? node.className : '';
+            if (cls.includes('ChatMessage_chatMessage__') || (node.matches && node.matches('[class*="ChatMessage_chatMessage__"]'))) {
+              node.classList.remove('mwi-chat-popin');
+              void node.offsetWidth; // reflow to restart
+              node.classList.add('mwi-chat-popin');
+            }
+          }
+        }
+      });
+      chatObs.observe(document.body, { childList: true, subtree: true });
+    }
+
     function hookUsageAnim() {
       if (window._mwiUsageAnimHooked) return;
       window._mwiUsageAnimHooked = true;
@@ -2102,10 +2186,30 @@
       });
 
       const dialog = document.createElement('div'); dialog.id = 'mwi-settings-dialog';
+
+      // Floating % tooltip for range sliders
+      const rangeTip = document.createElement('div');
+      rangeTip.id = 'mwi-range-tip';
+      rangeTip.style.cssText = 'position:fixed;pointer-events:none;background:rgba(20,28,46,0.92);color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid rgba(255,68,204,0.5);display:none;z-index:10000010;white-space:nowrap;';
+      document.body.appendChild(rangeTip);
+      const _showRangeTip = (el, pct) => {
+        const r = el.getBoundingClientRect();
+        const ratio = (pct) / 100;
+        const thumbX = r.left + ratio * r.width;
+        rangeTip.textContent = Math.round(pct) + '%';
+        rangeTip.style.display = 'block';
+        rangeTip.style.left = (thumbX - rangeTip.offsetWidth / 2) + 'px';
+        rangeTip.style.top = (r.top - 24) + 'px';
+      };
+      dialog.addEventListener('input', e => {
+        if (e.target.type === 'range') _showRangeTip(e.target, Number(e.target.value));
+      });
+      dialog.addEventListener('mouseup', e => { if (e.target.type === 'range') rangeTip.style.display = 'none'; });
+      dialog.addEventListener('mouseleave', () => { rangeTip.style.display = 'none'; });
       const closeBtn = document.createElement('button'); closeBtn.id = 'mwi-settings-close'; closeBtn.textContent = '\u2715';
       closeBtn.addEventListener('click', () => animateClose());
 
-      const title = document.createElement('h3'); title.textContent = 'MWI Customizer Settings - v1.2.2'; title.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; title.style.webkitBackgroundClip = 'text'; title.style.webkitTextFillColor = 'transparent'; title.style.backgroundClip = 'text';
+      const title = document.createElement('h3'); title.textContent = 'MWI Customizer Settings - v1.2.3'; title.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; title.style.webkitBackgroundClip = 'text'; title.style.webkitTextFillColor = 'transparent'; title.style.backgroundClip = 'text';
       const notice = document.createElement('div'); notice.className = 'mwi-settings-notice'; notice.textContent = 'Refresh the page for changes to apply.';
 
       // Search bar (sticky, below notice)
@@ -2124,7 +2228,7 @@
         const content = document.getElementById('mwi-settings-content');
         if (!content) return;
         if (!q) {
-          content.querySelectorAll('.mwi-settings-section,.mwi-colors-subsection,.mwi-customizer-sub').forEach(el => { el.style.display = ''; });
+          content.querySelectorAll('.mwi-settings-section,.mwi-colors-subsection,.mwi-customizer-sub,.mwi-anim-sub').forEach(el => { el.style.display = ''; });
           return;
         }
         // Search mwi-customizer-sub blocks (Themes, Background, Manage Elements, etc.)
@@ -2154,6 +2258,17 @@
           // Also check mwi-customizer-sub children inside this section
           section.querySelectorAll(':scope > .mwi-customizer-sub').forEach(sub => {
             if (sub.style.display !== 'none') sectionMatch = true;
+          });
+          // Check animation subsections (mwi-anim-sub)
+          section.querySelectorAll('.mwi-anim-sub').forEach(sub => {
+            let subMatch = false;
+            const h5 = sub.querySelector('h5');
+            if (h5 && h5.textContent.toLowerCase().includes(q)) subMatch = true;
+            sub.querySelectorAll('.mwi-anim-toggle-row').forEach(row => {
+              if (row.textContent.toLowerCase().includes(q)) subMatch = true;
+            });
+            sub.style.display = subMatch ? '' : 'none';
+            if (subMatch) sectionMatch = true;
           });
           section.style.display = sectionMatch ? '' : 'none';
         });
@@ -2211,6 +2326,12 @@
         [['frosted','Frosted'],['solid','Solid']].forEach(([v,t]) => { const o = document.createElement('option'); o.value=v; o.textContent=t; if ((cfg.btnStyle||'frosted')===v) o.selected=true; btnSelect.appendChild(o); });
         btnSelect.addEventListener('change', () => { cfg.btnStyle = btnSelect.value; saveSettings(); applyUIStyle(); });
         btnRow.appendChild(btnLabel); btnRow.appendChild(btnSelect); mwiCfgSection.appendChild(btnRow);
+        // Highlight Element on Hover toggle
+        const hhRow = document.createElement('div'); hhRow.className = 'mwi-settings-row';
+        const hhLabel = document.createElement('label'); hhLabel.textContent = 'Highlight Element on Hover'; hhLabel.style.cursor = 'pointer';
+        const hhChk = document.createElement('input'); hhChk.type = 'checkbox'; hhChk.checked = (cfg.hoverHighlight !== false);
+        hhChk.addEventListener('change', () => { cfg.hoverHighlight = hhChk.checked; saveSettings(); });
+        hhRow.appendChild(hhLabel); hhRow.appendChild(hhChk); mwiCfgSection.appendChild(hhRow);
       } catch (e) {}
 
       // Themes selector
@@ -2475,7 +2596,7 @@
       invSection.appendChild(modeRow);
 
       // All-mode color picker row (hidden unless mode === 'All')
-      const allRow = document.createElement('div'); allRow.className = 'mwi-settings-row';
+      const allRow = document.createElement('div'); allRow.className = 'mwi-settings-row mwi-color-row';
       const allLabel = document.createElement('div'); allLabel.textContent = 'All Color'; allLabel.style.flex = '1'; allLabel.style.marginRight = '8px';
       const allInput = document.createElement('input'); allInput.type = 'color';
       try { allInput.value = (cfg.allColor && String(cfg.allColor).trim()) || '#1d8ce0'; } catch (e) { allInput.value = '#1d8ce0'; }
@@ -2483,9 +2604,11 @@
       allRow.appendChild(allLabel); allRow.appendChild(allInput);
       // alpha slider
       const allAlpha = document.createElement('input'); allAlpha.type = 'range'; allAlpha.min = 0; allAlpha.max = 100; allAlpha.style.marginLeft = '8px';
-      try { allAlpha.value = String(Math.round((cfg.allAlpha !== undefined ? cfg.allAlpha : 1) * 100)); } catch (e) { allAlpha.value = '100'; }
+      try { allAlpha.value = String(Math.round((cfg.allAlpha !== undefined ? cfg.allAlpha : 0.2) * 100)); } catch (e) { allAlpha.value = '20'; }
       allAlpha.addEventListener('input', () => { try { cfg.allAlpha = Number(allAlpha.value)/100; saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan(); } catch (e) {} });
       allRow.appendChild(allAlpha);
+      // spacer in place of scale input (no scaling for all-color row)
+      const allSzSpacer = document.createElement('span'); allSzSpacer.className = 'mwi-sz-spacer'; allSzSpacer.style.marginLeft = '8px'; allRow.appendChild(allSzSpacer);
       // single clipboard shared across all color rows (site colors, all color, quantity tiers)
       let sharedColorClipboard = null;
       // copy button
@@ -2516,7 +2639,7 @@
       allReset.addEventListener('click', () => {
         try {
           if (DEFAULT_CFG && DEFAULT_CFG.allColor) cfg.allColor = DEFAULT_CFG.allColor; else delete cfg.allColor;
-          cfg.allAlpha = (DEFAULT_CFG && DEFAULT_CFG.allAlpha !== undefined) ? DEFAULT_CFG.allAlpha : 1;
+          cfg.allAlpha = (DEFAULT_CFG && DEFAULT_CFG.allAlpha !== undefined) ? DEFAULT_CFG.allAlpha : 0.2;
           try { allInput.value = cfg.allColor || '#1d8ce0'; } catch (e) { allInput.value = '#1d8ce0'; }
           allAlpha.value = String(Math.round((cfg.allAlpha !== undefined ? cfg.allAlpha : 1) * 100));
           saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan();
@@ -2563,7 +2686,7 @@
         for (let i = 0; i < tiers.length; i++) {
           try {
             const t = tiers[i];
-            const row = document.createElement('div'); row.className = 'mwi-settings-row';
+            const row = document.createElement('div'); row.className = 'mwi-settings-row mwi-color-row';
             const lbl = document.createElement('div'); lbl.textContent = '≥ ' + (t.min || 0); lbl.style.flex = '1'; lbl.style.marginRight = '8px';
             const colorInput = document.createElement('input'); colorInput.type = 'color';
             try { colorInput.value = (t.color && String(t.color).trim()) || '#ffffff'; } catch (e) { colorInput.value = '#ffffff'; }
@@ -2616,7 +2739,10 @@
                 saveSettings(); if (window.MWI_InventoryHighlighter && window.MWI_InventoryHighlighter.reScan) window.MWI_InventoryHighlighter.reScan();
               } catch (e) { log('reset quantity tier error', e); }
             });
-            row.appendChild(alpha); row.appendChild(copyBtn); row.appendChild(pasteBtn); row.appendChild(resetBtn);
+            row.appendChild(alpha);
+            // spacer in place of scale input (no scaling for quantity tiers)
+            const qtySzSpacer = document.createElement('span'); qtySzSpacer.className = 'mwi-sz-spacer'; qtySzSpacer.style.marginLeft = '8px'; row.appendChild(qtySzSpacer);
+            row.appendChild(copyBtn); row.appendChild(pasteBtn); row.appendChild(resetBtn);
             container.appendChild(row);
           } catch (e) {}
         }
@@ -2673,16 +2799,15 @@
 
       devSection.appendChild(devList);
 
-      // Group Category and Quantity editors under an "Inventory Category" subsection
-      const inventoryCategoryWrapper = document.createElement('div');
-      inventoryCategoryWrapper.className = 'mwi-settings-section';
-      // title removed per request: do not display "Inventory Category" text
-      // Category editor removed; include quantity editor and the 'All' picker so
-      // they occupy the same subsection and can be toggled (All replaces Quantity)
-      inventoryCategoryWrapper.appendChild(qtySection);
-      // append allRow (created earlier) into this wrapper so it shares the same area
-      try { if (typeof allRow !== 'undefined' && allRow) inventoryCategoryWrapper.appendChild(allRow); } catch (e) {}
-      invSection.appendChild(inventoryCategoryWrapper);
+      // Append quantity editor and All picker directly to invSection (no extra wrapper)
+      invSection.appendChild(qtySection);
+      try {
+        if (typeof allRow !== 'undefined' && allRow) {
+          const allSection = document.createElement('div'); allSection.className = 'mwi-colors-subsection'; allSection.style.borderTop = 'none'; allSection.style.paddingTop = '0'; allSection.style.marginTop = '0';
+          allSection.appendChild(allRow);
+          invSection.appendChild(allSection);
+        }
+      } catch (e) {}
 
       // ensure local ordering now that rows exist
       try { reorderBordersGlow(invSection); } catch (e) {}
@@ -2691,10 +2816,55 @@
       function renderColorsEditor(container) {
         container.innerHTML = '';
         const sc = cfg.siteColors || {};
+        // Column header row
+        const colHeader = document.createElement('div');
+        colHeader.style.cssText = 'display:flex; align-items:center; margin-bottom:2px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.08);';
+        const _ch = (text, width, ml) => {
+          const s = document.createElement('span');
+          s.textContent = text;
+          s.style.cssText = 'font-size:10px; color:rgba(200,220,245,0.5); text-align:center; flex-shrink:0;' + (width ? 'width:' + width + 'px;' : 'flex:1;') + (ml ? 'margin-left:' + ml + 'px;' : '');
+          return s;
+        };
+        colHeader.appendChild(_ch('', 0, 0)); // label flex:1
+        colHeader.appendChild(_ch('Color', 56, 0));
+        colHeader.appendChild(_ch('Opacity', 80, 8));
+        colHeader.appendChild(_ch('Scale', 38, 8));
+        const cpLabel = _ch('Copy/Paste/Reset', 82, 8); cpLabel.style.fontSize = '8px'; colHeader.appendChild(cpLabel);
+        container.appendChild(colHeader);
+        const PREVIEW_SEL = {
+          header: '[class*="GamePage_headerPanel__"]',
+          headerGrad: '[class*="Header_header__"]',
+          progressBar: '[class*="ProgressBar_innerBar__"]',
+          combat: '[class*="CombatUnit_combatUnit__"]',
+          hp: '[class*="HitpointsBar_currentHp__"],[class*="CombatUnit_heal__"]',
+          mp: '[class*="ManapointsBar_currentMp__"],[class*="CombatUnit_mana__"]',
+          hitDmg: '[class*="CombatUnit_damage__"]',
+          hitMiss: '[class*="CombatUnit_miss__"]',
+          attack: '[class*="ProgressBar_active__"]',
+          barBg: '[class*="HitpointsBar_hitpointsBar__"],[class*="ManapointsBar_manapointsBar__"],[class*="ProgressBar_progressBar__"]',
+          consumables: '[class*="Item_small__"],[class*="Ability_small__"]',
+          subPanel: '[class*="MainPanel_subPanelContainer__"]',
+          skillActions: '[class*="SkillAction_skillAction__"]',
+          sidePanel: '[class*="GamePage_navPanel__"]',
+          selectedSkill: '[class*="NavigationBar_navigationLink__"][class*="NavigationBar_active__"]',
+          skillXPBar: '[class*="NavigationBar_currentExperience__"]',
+          navLabel: '[class*="NavigationBar_label__"]',
+          level: '[class*="NavigationBar_level__"]',
+          panelBg: '[class*="Inventory_inventory__"]',
+          inventoryLabels: '[class*="Inventory_label__"]',
+          interactables: '[class*="Item_clickable__"],[class*="Ability_clickable__"],[class*="HousePanel_houseRoom__"]',
+          chatBg: '[class*="Chat_chat__"]',
+          timestamp: '[class*="ChatMessage_timestamp__"]',
+          chatText: '[data-mwi-chat-text-applied]',
+          systemMessage: '[class*="ChatMessage_systemMessage__"]',
+          buttonBg: '.MuiButtonBase-root.MuiTab-root[class*="MuiTab-textColorPrimary"]',
+          tabsBg: '.MuiTabs-root',
+          accent: '[class*="TabsComponent_badge__"]',
+        };
         const groups = [
           { title: 'Header', fields: [
             { key: 'header', label: 'Header' , hasAlpha: true, alphaKey: 'headerAlpha', defaultAlpha: 0.2},
-            { key: 'headerGrad', label: 'Header Gradient', hasAlpha: true, alphaKey: 'headerGradAlpha', defaultAlpha: 1},
+            { key: 'headerGrad', label: 'Header Gradient', hasAlpha: true, alphaKey: 'headerGradAlpha', defaultAlpha: 1, noSize: true},
             { key: 'progressBar', label: 'Progress Bar', hasAlpha: true, alphaKey: 'progressBarAlpha', defaultAlpha: 1}
           ]},
           { title: 'Combat', fields: [
@@ -2703,7 +2873,7 @@
             { key: 'mp', label: 'MP', hasAlpha: true, alphaKey: 'mpAlpha', defaultAlpha: 1},
             { key: 'hitDmg', label: 'Hitsplat Damage', hasAlpha: true, alphaKey: 'hitDmgAlpha', defaultAlpha: 1},
             { key: 'hitMiss', label: 'Hitsplat Miss', hasAlpha: true, alphaKey: 'hitMissAlpha', defaultAlpha: 1},
-            { key: 'attack', label: 'Attack', hasAlpha: true, alphaKey: 'attackAlpha', defaultAlpha: 1},
+            { key: 'attack', label: 'Attack', hasAlpha: true, alphaKey: 'attackAlpha', defaultAlpha: 1, noSize: true},
             { key: 'barBg', label: 'Bar Background', hasAlpha: true, alphaKey: 'barBgAlpha', defaultAlpha: 1}
           ,
             { key: 'consumables', label: 'Consumables / Abilities', hasAlpha: true, alphaKey: 'consumablesAlpha', defaultAlpha: 1}
@@ -2715,7 +2885,7 @@
           { title: 'Left Side Panel', fields: [
             { key: 'sidePanel', label: 'Panel' , hasAlpha: true, alphaKey: 'sidePanelAlpha', defaultAlpha: 0.2},
             { key: 'selectedSkill', label: 'Selected Skill', hasAlpha: true, alphaKey: 'selectedSkillAlpha', defaultAlpha: 1},
-            { key: 'skillXPBar', label: 'Skill XP Bar', hasAlpha: true, alphaKey: 'skillXPBarAlpha', defaultAlpha: 1},
+            { key: 'skillXPBar', label: 'Skill XP Bar', hasAlpha: true, alphaKey: 'skillXPBarAlpha', defaultAlpha: 1, noSize: true},
             { key: 'navLabel', label: 'Text Color', hasAlpha: true, alphaKey: 'navLabelAlpha', defaultAlpha: 1},
             { key: 'level', label: 'Level Text Color', hasAlpha: true, alphaKey: 'levelAlpha', defaultAlpha: 1}
           ]},
@@ -2727,13 +2897,13 @@
           { title: 'Chat', fields: [
             { key: 'chatBg', label: 'Panel' , hasAlpha: true, alphaKey: 'chatBgAlpha', defaultAlpha: 0.2},
             { key: 'timestamp', label: 'Timestamp Color', hasAlpha: true, alphaKey: 'timestampAlpha', defaultAlpha: 1 },
-            { key: 'chatText', label: 'Text Color', hasAlpha: true, alphaKey: 'chatTextAlpha', defaultAlpha: 1 },
-            { key: 'systemMessage', label: 'System Message', hasAlpha: true, alphaKey: 'systemMessageAlpha', defaultAlpha: 1 }
+            { key: 'chatText', label: 'Text Color', hasAlpha: true, alphaKey: 'chatTextAlpha', defaultAlpha: 1, noSize: true },
+            { key: 'systemMessage', label: 'System Message', hasAlpha: true, alphaKey: 'systemMessageAlpha', defaultAlpha: 1, noSize: true }
           ]},
           { title: 'Tabs', fields: [
             { key: 'buttonBg', label: 'Tabs' , hasAlpha: true, alphaKey: 'buttonBgAlpha', defaultAlpha: 1},
-            { key: 'tabsBg', label: 'Tabs Background', hasAlpha: true, alphaKey: 'tabsBgAlpha', defaultAlpha: 1},
-            { key: 'accent', label: 'Text Color' , hasAlpha: true, alphaKey: 'accentAlpha', defaultAlpha: 1}
+            { key: 'tabsBg', label: 'Tabs Background', hasAlpha: true, alphaKey: 'tabsBgAlpha', defaultAlpha: 1, noSize: true},
+            { key: 'accent', label: 'Text Color' , hasAlpha: true, alphaKey: 'accentAlpha', defaultAlpha: 1, noSize: true}
           ]}
         ];
 
@@ -2744,6 +2914,22 @@
           try {
             const row = document.createElement('div'); row.className = 'mwi-settings-row';
             const lbl = document.createElement('div'); lbl.textContent = f.label; lbl.style.flex = '1'; lbl.style.marginRight = '8px';
+            if (PREVIEW_SEL[f.key]) {
+              lbl.style.cursor = 'default';
+              lbl.addEventListener('mouseenter', () => {
+                try {
+                  if (cfg.hoverHighlight === false) return;
+                  const overlay = document.getElementById('mwi-settings-overlay');
+                  document.querySelectorAll(PREVIEW_SEL[f.key]).forEach(el => {
+                    if (overlay && overlay.contains(el)) return;
+                    el.classList.add('mwi-preview-highlight');
+                  });
+                } catch(e) {}
+              });
+              lbl.addEventListener('mouseleave', () => {
+                try { document.querySelectorAll('.mwi-preview-highlight').forEach(el => el.classList.remove('mwi-preview-highlight')); } catch(e) {}
+              });
+            }
             const colorInput = document.createElement('input'); colorInput.type = 'color';
             try { colorInput.value = (sc[f.key] && String(sc[f.key]).trim()) || '#ffffff'; } catch (e) { colorInput.value = '#ffffff'; }
             colorInput.addEventListener('input', () => {
@@ -2804,13 +2990,19 @@
                   if (defColor) cfg.siteColors[f.key] = defColor; else delete cfg.siteColors[f.key];
                   const defAlpha = (DEFAULT_CFG && DEFAULT_CFG.siteColors && DEFAULT_CFG.siteColors[f.alphaKey] !== undefined) ? DEFAULT_CFG.siteColors[f.alphaKey] : (f.defaultAlpha !== undefined ? f.defaultAlpha : 1);
                   cfg.siteColors[f.alphaKey] = defAlpha;
+                  delete cfg.siteColors[f.key + 'Size'];
                   try { if (defColor) colorInput.value = defColor; else colorInput.value = '#ffffff'; } catch(e){}
                   alpha.value = String(Math.round(cfg.siteColors[f.alphaKey]*100));
+                  if (sizeInput) sizeInput.value = '1';
                   if (defColor) { colorInput.classList.remove('mwi-inactive'); alpha.disabled = false; alpha.classList.remove('mwi-range-disabled'); } else { colorInput.classList.add('mwi-inactive'); alpha.disabled = true; alpha.classList.add('mwi-range-disabled'); }
                   applySiteColors(); saveSettings();
                 } catch (e) { log('reset single site color error', e); }
               });
-              row.appendChild(alpha); row.appendChild(copyBtn); row.appendChild(pasteBtn); row.appendChild(resetBtn);
+              const sizeInput = f.noSize ? null : document.createElement('input');
+              if (sizeInput) { sizeInput.type = 'number'; sizeInput.min = '1'; sizeInput.max = '10'; sizeInput.step = '1'; const _szToDisplay = v => Math.round((v - 1) / 0.1) + 1; const _displayToSz = d => Math.round((1 + (d - 1) * 0.1) * 100) / 100; sizeInput.value = String(sc[f.key + 'Size'] !== undefined ? _szToDisplay(sc[f.key + 'Size']) : 1); sizeInput.style.marginLeft = '8px'; sizeInput.style.width = '38px'; sizeInput.title = 'Scale (1 = default)'; sizeInput.addEventListener('change', () => { try { cfg.siteColors = cfg.siteColors || {}; let d = parseInt(sizeInput.value, 10); if (isNaN(d) || d < 1) { d = 1; sizeInput.value = '1'; } cfg.siteColors[f.key + 'Size'] = _displayToSz(d); applySiteColors(); saveSettings(); } catch (e) {} }); }
+              const sizeSpacer = f.noSize ? document.createElement('span') : null;
+              if (sizeSpacer) { sizeSpacer.style.display = 'inline-block'; sizeSpacer.style.width = '46px'; sizeSpacer.style.flexShrink = '0'; }
+              row.appendChild(alpha); if (sizeInput) row.appendChild(sizeInput); else row.appendChild(sizeSpacer); row.appendChild(copyBtn); row.appendChild(pasteBtn); row.appendChild(resetBtn);
             }
             return row;
           } catch (e) { return null; }
@@ -2861,6 +3053,11 @@
             const sitewideSub = document.createElement('div'); sitewideSub.className = 'mwi-anim-sub';
             const sitewideSubTitle = document.createElement('h5'); sitewideSubTitle.textContent = 'Sitewide'; sitewideSubTitle.style.cssText = 'font-size:12px;margin:0 0 6px;background:linear-gradient(90deg,#44aaff,#ff44cc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;';
             sitewideSub.appendChild(sitewideSubTitle);
+            const chatAnimRow = document.createElement('div'); chatAnimRow.className = 'mwi-anim-toggle-row';
+            const chatAnimChk = document.createElement('input'); chatAnimChk.type = 'checkbox'; chatAnimChk.id = 'mwi-anim-chat-chk'; chatAnimChk.checked = (cfg.chatAnim !== false);
+            const chatAnimLbl = document.createElement('label'); chatAnimLbl.htmlFor = 'mwi-anim-chat-chk'; chatAnimLbl.textContent = 'Chat';
+            chatAnimChk.addEventListener('change', () => { cfg.chatAnim = chatAnimChk.checked; saveSettings(); });
+            chatAnimRow.appendChild(chatAnimChk); chatAnimRow.appendChild(chatAnimLbl); sitewideSub.appendChild(chatAnimRow);
             animSection.appendChild(sitewideSub);
           } catch (e) {}
           // Combat animations sub-section
@@ -3022,55 +3219,29 @@
     }
 
 
-    function findFilterContainer() {
-      const selectors = ['.item-filter', '.filter', '.ItemFilter', '[data-filter]', '.filters', '.controls'];
-      for (const s of selectors) {
-        const el = document.querySelector(s);
-        if (el) return el;
-      }
-      // fallback: try inventory container header or rightmost toolbar
-      const alt = document.querySelector('.Inventory_inventory__17CH2') || document.body;
-      return alt;
-    }
-
     function insertSettingsButton() {
       try {
         injectStyles(); createSettingsModal();
-      // Prefer the item grid placement if available
-      const grid = document.querySelector('.Inventory_itemGrid__20YAH');
-      if (grid) {
-        // ensure parent is positioned so absolute placement works
-        const parent = grid.parentElement || grid;
-        try {
-          const cs = window.getComputedStyle(parent);
-          if (cs.position === 'static' || !cs.position) parent.style.position = 'relative';
-        } catch (e) {}
-        const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Customizer Settings'; btn.textContent = '\u2699 MWI Customizer';
-        btn.setAttribute('aria-label', 'MWI Customizer Settings');
-        btn.style.position = 'absolute'; btn.style.right = '8px'; btn.style.top = '8px'; btn.style.zIndex = 9999999;
-        btn.addEventListener('click', openSettings);
-        // append to parent so it sits over the grid on the far right
-        parent.appendChild(btn);
-        applyUIStyle();
-        return;
-      }
-
-      const container = findFilterContainer();
-      if (!container) return;
-        // prefer adding to a toolbar-like area; if the found container is large, attach to its parent
-        let target = container;
-        if (container.tagName && container.tagName.toLowerCase() === 'body') {
-          // place fixed near right edge if no filter container found
-          const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Customizer Settings'; btn.textContent = '\u2699 MWI Customizer';
-          btn.style.position = 'fixed'; btn.style.right = '12px'; btn.style.bottom = '12px'; btn.style.zIndex = 9999999;
-          btn.addEventListener('click', openSettings);
-          document.body.appendChild(btn); applyUIStyle(); return;
+        function makeBtn() {
+          const b = document.createElement('button'); b.id = 'mwi-settings-btn'; b.title = 'MWI Customizer Settings'; b.textContent = '\u2699 MWI Customizer';
+          b.setAttribute('aria-label', 'MWI Customizer Settings');
+          b.addEventListener('click', openSettings);
+          return b;
         }
-        // try to append next to container
-        const btn = document.createElement('button'); btn.id = 'mwi-settings-btn'; btn.title = 'MWI Customizer Settings'; btn.textContent = '\u2699 MWI Customizer';
-        btn.addEventListener('click', openSettings);
-        // if container is inline/toolbar, append as child; otherwise append to its parent
-        try { container.appendChild(btn); } catch (e) { container.parentElement && container.parentElement.appendChild(btn); }
+        // Place button absolutely inside Inventory_itemFilter__ (position:relative) at top-right.
+        // Low z-index so MUI popovers (z~1300) always render above it.
+        const filter = document.querySelector('[class*="Inventory_itemFilter__"]');
+        if (filter) {
+          const btn = makeBtn();
+          btn.style.position = 'absolute'; btn.style.right = '8px'; btn.style.top = '8px'; btn.style.zIndex = 10;
+          filter.style.position = 'relative';
+          filter.appendChild(btn);
+          applyUIStyle(); return;
+        }
+        // Fallback: fixed at bottom-right until the inventory mounts
+        const btn = makeBtn();
+        btn.style.position = 'fixed'; btn.style.right = '12px'; btn.style.bottom = '12px'; btn.style.zIndex = 9999999;
+        document.body.appendChild(btn); applyUIStyle();
       } catch (e) { log('insertSettingsButton error', e); }
     }
 
@@ -3110,6 +3281,7 @@
     } catch (e) {}
     insertSettingsButton();
     hookCombatWS();
+    try { hookChatAnim(); } catch (e) {}
     try { hookUsageAnim(); } catch (e) {}
 
     // Re-insert the settings button if React ever removes it during a re-render.
@@ -3123,10 +3295,19 @@
           try {
             if (!document.getElementById('mwi-settings-btn')) {
               log('Settings button missing — reinserting');
-              insertSettingsButton();
+              // Wait for the inventory filter so we never fall back to fixed-bottom during a transition
+              const filterReady = document.querySelector('[class*="Inventory_itemFilter__"]');
+              if (filterReady) {
+                insertSettingsButton();
+              } else {
+                // Filter bar not mounted yet (mid character-switch) — retry once it appears
+                waitFor(() => document.querySelector('[class*="Inventory_itemFilter__"]'), 8000, 200)
+                  .then(() => { try { if (!document.getElementById('mwi-settings-btn')) insertSettingsButton(); } catch (e) {} })
+                  .catch(() => {});
+              }
             }
           } catch (e) {}
-        }, 300);
+        }, 400);
       } catch (e) {}
     });
     btnObserver.observe(document.body, { childList: true, subtree: true });

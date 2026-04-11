@@ -4,10 +4,11 @@ A userscript that adds visual customization, combat animations, and inventory hi
 
 Features
 - Site-wide color overrides (header, panels, chat, buttons, accent, text, etc.)
-- Combat Animations
+- Site Animations
 - Inventory color coding by Quantity with customizable colors
 - Custom backgrounds
 - Hide and reorganize elements and skills you don't use
+- Element scaling
 - Importing/Exporting settings/themes
 - All settings in one place at the top right of your Inventory
 

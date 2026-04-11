@@ -1,3 +1,12 @@
+v1.2.3
+
+- Added ability to resize site elements
+- Added new animation toggle for Chat
+- Added a border to the corresponding element when hovering a color config
+- Added a tooltip showing the % when adjusting the opacity of an element
+- Fixed Settings button appearing above profile dropdown
+- Potential fix for Settings button moving after switching characters
+
 v1.2.2
 
 - Added ways to reset Glow and Left side panel order/visibility to their defaults
