@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         MWI Customizer
 // @namespace    https://github.com/collaring
-// @version      1.2.3
+// @version      1.2.4
 // @description  Customize Milky Way Idle
 // @author       collaring <https://github.com/collaring>
 // @license      MIT
@@ -2209,7 +2209,7 @@
       const closeBtn = document.createElement('button'); closeBtn.id = 'mwi-settings-close'; closeBtn.textContent = '\u2715';
       closeBtn.addEventListener('click', () => animateClose());
 
-      const title = document.createElement('h3'); title.textContent = 'MWI Customizer Settings - v1.2.3'; title.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; title.style.webkitBackgroundClip = 'text'; title.style.webkitTextFillColor = 'transparent'; title.style.backgroundClip = 'text';
+      const title = document.createElement('h3'); title.textContent = 'MWI Customizer Settings - v1.2.4'; title.style.background = 'linear-gradient(90deg, #ff44cc, #44aaff)'; title.style.webkitBackgroundClip = 'text'; title.style.webkitTextFillColor = 'transparent'; title.style.backgroundClip = 'text';
       const notice = document.createElement('div'); notice.className = 'mwi-settings-notice'; notice.textContent = 'Refresh the page for changes to apply.';
 
       // Search bar (sticky, below notice)
@@ -2999,7 +2999,7 @@
                 } catch (e) { log('reset single site color error', e); }
               });
               const sizeInput = f.noSize ? null : document.createElement('input');
-              if (sizeInput) { sizeInput.type = 'number'; sizeInput.min = '1'; sizeInput.max = '10'; sizeInput.step = '1'; const _szToDisplay = v => Math.round((v - 1) / 0.1) + 1; const _displayToSz = d => Math.round((1 + (d - 1) * 0.1) * 100) / 100; sizeInput.value = String(sc[f.key + 'Size'] !== undefined ? _szToDisplay(sc[f.key + 'Size']) : 1); sizeInput.style.marginLeft = '8px'; sizeInput.style.width = '38px'; sizeInput.title = 'Scale (1 = default)'; sizeInput.addEventListener('change', () => { try { cfg.siteColors = cfg.siteColors || {}; let d = parseInt(sizeInput.value, 10); if (isNaN(d) || d < 1) { d = 1; sizeInput.value = '1'; } cfg.siteColors[f.key + 'Size'] = _displayToSz(d); applySiteColors(); saveSettings(); } catch (e) {} }); }
+              if (sizeInput) { sizeInput.type = 'number'; sizeInput.min = '-9'; sizeInput.max = '10'; sizeInput.step = '1'; const _szToDisplay = v => Math.round((v - 1) / 0.1) + 1; const _displayToSz = d => Math.round((1 + (d - 1) * 0.1) * 100) / 100; sizeInput.value = String(sc[f.key + 'Size'] !== undefined ? _szToDisplay(sc[f.key + 'Size']) : 1); sizeInput.style.marginLeft = '8px'; sizeInput.style.width = '38px'; sizeInput.title = 'Scale (1 = default, negative = smaller)'; sizeInput.addEventListener('change', () => { try { cfg.siteColors = cfg.siteColors || {}; let d = parseInt(sizeInput.value, 10); if (isNaN(d)) { d = 1; sizeInput.value = '1'; } d = Math.max(-9, Math.min(10, d)); sizeInput.value = String(d); cfg.siteColors[f.key + 'Size'] = _displayToSz(d); applySiteColors(); saveSettings(); } catch (e) {} }); }
               const sizeSpacer = f.noSize ? document.createElement('span') : null;
               if (sizeSpacer) { sizeSpacer.style.display = 'inline-block'; sizeSpacer.style.width = '46px'; sizeSpacer.style.flexShrink = '0'; }
               row.appendChild(alpha); if (sizeInput) row.appendChild(sizeInput); else row.appendChild(sizeSpacer); row.appendChild(copyBtn); row.appendChild(pasteBtn); row.appendChild(resetBtn);

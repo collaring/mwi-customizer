@@ -1,3 +1,7 @@
+v1.2.4
+
+- Allowed negative element scaling
+
 v1.2.3
 
 - Added ability to resize site elements
